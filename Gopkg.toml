@@ -139,3 +139,7 @@ ignored = [ "github.com/ethereum/go-ethereum/ethapi" ]
 [[constraint]]
   name = "github.com/beevik/ntp"
   version = "0.2.0"
+
+[[override]]
+  name = "github.com/multiformats/go-multiaddr"
+  revision = "f36800afeb9c141e1adb7da099e6f010dfd4c419"
