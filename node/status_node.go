@@ -17,9 +17,11 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/syndtr/goleveldb/leveldb"
 
 	"github.com/status-im/status-go/db"
+	"github.com/status-im/status-go/discovery"
 	"github.com/status-im/status-go/params"
 	"github.com/status-im/status-go/peers"
 	"github.com/status-im/status-go/rpc"
@@ -48,7 +50,7 @@ type StatusNode struct {
 	rpcClient        *rpc.Client        // reference to public RPC client
 	rpcPrivateClient *rpc.Client        // reference to private RPC client (can call private APIs)
 
-	discovery peers.Discovery
+	discovery discovery.Discovery
 	register  *peers.Register
 	peerPool  *peers.PeerPool
 	db        *leveldb.DB // used as a cache for PeerPool
@@ -178,14 +180,36 @@ func (n *StatusNode) setupRPCClient() (err error) {
 }
 
 func (n *StatusNode) discoveryEnabled() bool {
-	return n.config != nil && !n.config.NoDiscovery && n.config.ClusterConfig != nil
+	return n.config != nil && !n.config.NoDiscovery && n.config.ClusterConfig != nil && len(n.config.EnabledDiscoveries) != 0
 }
 
 func (n *StatusNode) startDiscovery() error {
-	n.discovery = peers.NewDiscV5(
-		n.gethNode.Server().PrivateKey,
-		n.config.ListenAddr,
-		parseNodesV5(n.config.ClusterConfig.BootNodes))
+	if len(n.config.EnabledDiscoveries) != 1 {
+		return errors.New("only one discovery can be used (will be enabled in next change)")
+	}
+	switch dtype := n.config.EnabledDiscoveries[0]; dtype {
+	case discovery.EthereumV5:
+		n.discovery = discovery.NewDiscV5(
+			n.gethNode.Server().PrivateKey,
+			n.config.ListenAddr,
+			parseNodesV5(n.config.ClusterConfig.BootNodes))
+	case discovery.RendezvousV1:
+		if len(n.config.ClusterConfig.RendezvousNodes) == 0 {
+			return errors.New("rendezvous node must be provided if rendezvous discovery is enabled")
+		}
+		// TODO(dshulyak) update client to send requests concurrently to multiple nodes
+		srvAddr, err := ma.NewMultiaddr(n.config.ClusterConfig.RendezvousNodes[0])
+		if err != nil {
+			return fmt.Errorf("failed to parse rendezvous node %s: %v", n.config.ClusterConfig.RendezvousNodes[0], err)
+		}
+		srv := n.gethNode.Server()
+		n.discovery, err = discovery.NewRendezvous(srvAddr, srv.PrivateKey, srv.Self())
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown discovery type %s", dtype)
+	}
 	n.register = peers.NewRegister(n.discovery, n.config.RegisterTopics...)
 	options := peers.NewDefaultOptions()
 	// TODO(dshulyak) consider adding a flag to define this behaviour

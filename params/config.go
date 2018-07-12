@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discv5"
 
+	"github.com/status-im/status-go/discovery"
 	"github.com/status-im/status-go/static"
 )
 
@@ -196,6 +197,9 @@ type ClusterConfig struct {
 	// BootNodes list of cluster peer nodes for a given network (Mainnet, Ropsten, Rinkeby, Homestead),
 	// for a given mode (production vs development)
 	BootNodes []string
+
+	// RendezvousNodes is a rendezvous discovery server.
+	RendezvousNodes []string
 }
 
 // String dumps config object as nicely indented JSON
@@ -254,6 +258,9 @@ type NodeConfig struct {
 
 	// NoDiscovery set to true will disable discovery protocol.
 	NoDiscovery bool
+
+	// EnabledDiscoveries defines discovery types that will be used.
+	EnabledDiscoveries []string
 
 	// ListenAddr is an IP address and port of this node (e.g. 127.0.0.1:30303).
 	ListenAddr string
@@ -341,23 +348,24 @@ type NodeConfig struct {
 // NewNodeConfig creates new node configuration object
 func NewNodeConfig(dataDir string, clstrCfgFile string, networkID uint64) (*NodeConfig, error) {
 	nodeConfig := &NodeConfig{
-		NetworkID:         networkID,
-		DataDir:           dataDir,
-		Name:              ClientIdentifier,
-		Version:           Version,
-		RPCEnabled:        RPCEnabledDefault,
-		HTTPHost:          HTTPHost,
-		HTTPPort:          HTTPPort,
-		ListenAddr:        ListenAddr,
-		APIModules:        APIModules,
-		MaxPeers:          MaxPeers,
-		MaxPendingPeers:   MaxPendingPeers,
-		IPCFile:           IPCFile,
-		log:               log.New("package", "status-go/params.NodeConfig"),
-		LogFile:           LogFile,
-		LogLevel:          LogLevel,
-		LogToStderr:       LogToStderr,
-		ClusterConfigFile: clstrCfgFile,
+		NetworkID:          networkID,
+		DataDir:            dataDir,
+		Name:               ClientIdentifier,
+		Version:            Version,
+		RPCEnabled:         RPCEnabledDefault,
+		HTTPHost:           HTTPHost,
+		HTTPPort:           HTTPPort,
+		ListenAddr:         ListenAddr,
+		APIModules:         APIModules,
+		MaxPeers:           MaxPeers,
+		MaxPendingPeers:    MaxPendingPeers,
+		IPCFile:            IPCFile,
+		log:                log.New("package", "status-go/params.NodeConfig"),
+		LogFile:            LogFile,
+		LogLevel:           LogLevel,
+		LogToStderr:        LogToStderr,
+		ClusterConfigFile:  clstrCfgFile,
+		EnabledDiscoveries: []string{discovery.RendezvousV1},
 		ClusterConfig: &ClusterConfig{
 			Enabled:     true,
 			StaticNodes: []string{},
