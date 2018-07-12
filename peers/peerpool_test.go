@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/status-im/status-go/discovery"
 	"github.com/status-im/status-go/params"
 	"github.com/status-im/status-go/signal"
 
@@ -30,7 +31,7 @@ type PeerPoolSimulationSuite struct {
 
 	bootnode  *p2p.Server
 	peers     []*p2p.Server
-	discovery []Discovery
+	discovery []discovery.Discovery
 	port      uint16
 }
 
@@ -65,7 +66,7 @@ func (s *PeerPoolSimulationSuite) SetupTest() {
 
 	// 1 peer to initiate connection, 1 peer as a first candidate, 1 peer - for failover
 	s.peers = make([]*p2p.Server, 3)
-	s.discovery = make([]Discovery, 3)
+	s.discovery = make([]discovery.Discovery, 3)
 	for i := range s.peers {
 		key, _ := crypto.GenerateKey()
 		whisper := whisperv6.New(nil)
@@ -82,7 +83,7 @@ func (s *PeerPoolSimulationSuite) SetupTest() {
 		}
 		s.NoError(peer.Start())
 		s.peers[i] = peer
-		d := NewDiscV5(key, peer.ListenAddr, peer.BootstrapNodesV5)
+		d := discovery.NewDiscV5(key, peer.ListenAddr, peer.BootstrapNodesV5)
 		s.NoError(d.Start())
 		s.discovery[i] = d
 	}
@@ -254,7 +255,7 @@ func TestPeerPoolMaxPeersOverflow(t *testing.T) {
 	}
 	require.NoError(t, peer.Start())
 	defer peer.Stop()
-	discovery := NewDiscV5(key, peer.ListenAddr, nil)
+	discovery := discovery.NewDiscV5(key, peer.ListenAddr, nil)
 	require.NoError(t, discovery.Start())
 	defer func() { assert.NoError(t, discovery.Stop()) }()
 	require.True(t, discovery.Running())
@@ -306,7 +307,7 @@ func TestPeerPoolDiscV5Timeout(t *testing.T) {
 	require.NoError(t, server.Start())
 	defer server.Stop()
 
-	discovery := NewDiscV5(key, server.ListenAddr, nil)
+	discovery := discovery.NewDiscV5(key, server.ListenAddr, nil)
 	require.NoError(t, discovery.Start())
 	defer func() { assert.NoError(t, discovery.Stop()) }()
 	require.True(t, discovery.Running())
@@ -353,7 +354,7 @@ func TestPeerPoolNotAllowedStopping(t *testing.T) {
 	require.NoError(t, server.Start())
 	defer server.Stop()
 
-	discovery := NewDiscV5(key, server.ListenAddr, nil)
+	discovery := discovery.NewDiscV5(key, server.ListenAddr, nil)
 	require.NoError(t, discovery.Start())
 	defer func() { assert.NoError(t, discovery.Stop()) }()
 	require.True(t, discovery.Running())
