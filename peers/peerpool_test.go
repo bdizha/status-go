@@ -3,6 +3,7 @@ package peers
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"strconv"
 	"testing"
@@ -14,10 +15,15 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/discv5"
 	"github.com/ethereum/go-ethereum/whisper/whisperv6"
+	lcrypto "github.com/libp2p/go-libp2p-crypto"
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/storage"
 
+	"github.com/status-im/rendezvous/server"
 	"github.com/status-im/status-go/discovery"
 	"github.com/status-im/status-go/params"
 	"github.com/status-im/status-go/signal"
@@ -29,10 +35,11 @@ import (
 type PeerPoolSimulationSuite struct {
 	suite.Suite
 
-	bootnode  *p2p.Server
-	peers     []*p2p.Server
-	discovery []discovery.Discovery
-	port      uint16
+	bootnode         *p2p.Server
+	peers            []*p2p.Server
+	discovery        []discovery.Discovery
+	port             uint16
+	rendezvousServer *server.Server
 }
 
 func TestPeerPoolSimulationSuite(t *testing.T) {
@@ -83,7 +90,31 @@ func (s *PeerPoolSimulationSuite) SetupTest() {
 		}
 		s.NoError(peer.Start())
 		s.peers[i] = peer
-		d := discovery.NewDiscV5(key, peer.ListenAddr, peer.BootstrapNodesV5)
+	}
+}
+
+func (s *PeerPoolSimulationSuite) setupEthV5() {
+	for i := range s.peers {
+		peer := s.peers[i]
+		d := discovery.NewDiscV5(peer.PrivateKey, peer.ListenAddr, peer.BootstrapNodesV5)
+		s.NoError(d.Start())
+		s.discovery[i] = d
+	}
+}
+
+func (s *PeerPoolSimulationSuite) setupRendezvous() {
+	priv, _, err := lcrypto.GenerateKeyPairWithReader(lcrypto.RSA, 2048, rand.New(rand.NewSource(1)))
+	s.Require().NoError(err)
+	laddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/7777"))
+	s.Require().NoError(err)
+	db, err := leveldb.Open(storage.NewMemStorage(), nil)
+	s.Require().NoError(err)
+	s.rendezvousServer = server.NewServer(laddr, priv, server.NewStorage(db))
+	s.Require().NoError(s.rendezvousServer.Start())
+	for i := range s.peers {
+		peer := s.peers[i]
+		d, err := discovery.NewRendezvous(s.rendezvousServer.Addr(), peer.PrivateKey, peer.Self())
+		s.NoError(err)
 		s.NoError(d.Start())
 		s.discovery[i] = d
 	}
@@ -94,6 +125,9 @@ func (s *PeerPoolSimulationSuite) TearDown() {
 	for i := range s.peers {
 		s.peers[i].Stop()
 		s.NoError(s.discovery[i].Stop())
+	}
+	if s.rendezvousServer != nil {
+		s.rendezvousServer.Stop()
 	}
 }
 
@@ -121,7 +155,8 @@ func (s *PeerPoolSimulationSuite) getPoolEvent(events <-chan string) string {
 	}
 }
 
-func (s *PeerPoolSimulationSuite) TestPeerPoolCache() {
+func (s *PeerPoolSimulationSuite) TestPeerPoolCacheEthV5() {
+	s.setupEthV5()
 	var err error
 
 	topic := discv5.Topic("cap=test")
@@ -143,11 +178,19 @@ func (s *PeerPoolSimulationSuite) TestPeerPoolCache() {
 	}
 }
 
-func (s *PeerPoolSimulationSuite) TestSingleTopicDiscoveryWithFailover() {
+func (s *PeerPoolSimulationSuite) TestSingleTopicDiscoveryWithFailoverEthV5() {
 	s.T().Skip("Skipping due to being flaky")
+	s.setupEthV5()
+	s.singleTopicDiscoveryWithFailover()
+}
 
+func (s *PeerPoolSimulationSuite) TestSingleTopicDiscoveryWithFailoverRendezvous() {
+	s.setupRendezvous()
+	s.singleTopicDiscoveryWithFailover()
+}
+
+func (s *PeerPoolSimulationSuite) singleTopicDiscoveryWithFailover() {
 	var err error
-
 	// Buffered channels must be used because we expect the events
 	// to be in the same order. Use a buffer length greater than
 	// the expected number of events to avoid deadlock.
