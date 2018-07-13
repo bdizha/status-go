@@ -198,13 +198,16 @@ func (n *StatusNode) startDiscovery() error {
 		if len(n.config.ClusterConfig.RendezvousNodes) == 0 {
 			return errors.New("rendezvous node must be provided if rendezvous discovery is enabled")
 		}
-		// TODO(dshulyak) update client to send requests concurrently to multiple nodes
-		srvAddr, err := ma.NewMultiaddr(n.config.ClusterConfig.RendezvousNodes[0])
-		if err != nil {
-			return fmt.Errorf("failed to parse rendezvous node %s: %v", n.config.ClusterConfig.RendezvousNodes[0], err)
+		maddrs := make(ma.Multiaddr, len(n.config.ClusterConfig.RendezvousNodes))
+		for i, addr := range n.config.ClusterConfig.RendezvousNodes {
+			var err error
+			maddrs[i], err = ma.NewMultiaddr(addr)
+			if err != nil {
+				return fmt.Errorf("failed to parse rendezvous node %s: %v", n.config.ClusterConfig.RendezvousNodes[0], err)
+			}
 		}
 		srv := n.gethNode.Server()
-		n.discovery, err = discovery.NewRendezvous(srvAddr, srv.PrivateKey, srv.Self())
+		n.discovery, err = discovery.NewRendezvous(maddrs, srv.PrivateKey, srv.Self())
 		if err != nil {
 			return err
 		}

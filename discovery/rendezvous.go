@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"crypto/ecdsa"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -20,9 +21,9 @@ const (
 	bucketSize         = 10
 )
 
-func NewRendezvous(srv ma.Multiaddr, identity *ecdsa.PrivateKey, node *discover.Node) (*Rendezvous, error) {
+func NewRendezvous(servers []ma.Multiaddr, identity *ecdsa.PrivateKey, node *discover.Node) (*Rendezvous, error) {
 	r := new(Rendezvous)
-	r.srv = srv
+	r.servers = servers
 	r.registrationPeriod = registrationPeriod
 	r.bucketSize = bucketSize
 
@@ -42,7 +43,7 @@ type Rendezvous struct {
 	mu     sync.RWMutex
 	client *rendezvous.Client
 
-	srv                ma.Multiaddr
+	servers            []ma.Multiaddr
 	registrationPeriod time.Duration
 	bucketSize         int
 	record             enr.Record
@@ -81,11 +82,12 @@ func (r *Rendezvous) Register(topic string, stop chan struct{}) error {
 	ticker := time.NewTicker(r.registrationPeriod)
 	defer ticker.Stop()
 	register := func() {
+		srv := r.servers[rand.Intn(len(r.servers))]
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := r.client.Register(ctx, r.srv, topic, r.record)
+		err := r.client.Register(ctx, srv, topic, r.record)
 		cancel()
 		if err != nil {
-			log.Error("error registering", "topic", topic, "rendevous server", r.srv, "err", err)
+			log.Error("error registering", "topic", topic, "rendevous server", srv, "err", err)
 		}
 	}
 	register()
@@ -117,11 +119,12 @@ func (r *Rendezvous) Discover(
 			timePeriod = new
 			ticker = time.NewTicker(new)
 		case <-ticker.C:
+			srv := r.servers[rand.Intn(len(r.servers))]
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			records, err := r.client.Discover(ctx, r.srv, topic, r.bucketSize)
+			records, err := r.client.Discover(ctx, srv, topic, r.bucketSize)
 			cancel()
 			if err != nil {
-				log.Error("error fetching records", "topic", topic, "rendezvous server", r.srv, "err", err)
+				log.Error("error fetching records", "topic", topic, "rendezvous server", srv, "err", err)
 			}
 			for i := range records {
 				n, err := enrToNode(records[i])

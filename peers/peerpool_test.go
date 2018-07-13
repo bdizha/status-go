@@ -3,7 +3,6 @@ package peers
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net"
 	"strconv"
 	"testing"
@@ -103,7 +102,7 @@ func (s *PeerPoolSimulationSuite) setupEthV5() {
 }
 
 func (s *PeerPoolSimulationSuite) setupRendezvous() {
-	priv, _, err := lcrypto.GenerateKeyPairWithReader(lcrypto.RSA, 2048, rand.New(rand.NewSource(1)))
+	priv, _, err := lcrypto.GenerateKeyPair(lcrypto.Secp256k1, 0)
 	s.Require().NoError(err)
 	laddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/7777"))
 	s.Require().NoError(err)
@@ -113,7 +112,7 @@ func (s *PeerPoolSimulationSuite) setupRendezvous() {
 	s.Require().NoError(s.rendezvousServer.Start())
 	for i := range s.peers {
 		peer := s.peers[i]
-		d, err := discovery.NewRendezvous(s.rendezvousServer.Addr(), peer.PrivateKey, peer.Self())
+		d, err := discovery.NewRendezvous([]ma.Multiaddr{s.rendezvousServer.Addr()}, peer.PrivateKey, peer.Self())
 		s.NoError(err)
 		s.NoError(d.Start())
 		s.discovery[i] = d
