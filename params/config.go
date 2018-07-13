@@ -370,7 +370,7 @@ func NewNodeConfig(dataDir string, clstrCfgFile string, networkID uint64) (*Node
 		LogLevel:           LogLevel,
 		LogToStderr:        LogToStderr,
 		ClusterConfigFile:  clstrCfgFile,
-		EnabledDiscoveries: []string{discovery.RendezvousV1},
+		EnabledDiscoveries: []string{discovery.EthereumV5},
 		ClusterConfig: &ClusterConfig{
 			Enabled:     true,
 			StaticNodes: []string{},

@@ -186,7 +186,7 @@ func (n *StatusNode) discoveryEnabled() bool {
 
 func (n *StatusNode) startDiscovery() error {
 	if len(n.config.EnabledDiscoveries) != 1 {
-		return errors.New("only one discovery can be used (will be enabled in next change)")
+		return errors.New("only one discovery can be used (will be allowed to use more in next change)")
 	}
 	switch dtype := n.config.EnabledDiscoveries[0]; dtype {
 	case discovery.EthereumV5:
@@ -198,7 +198,7 @@ func (n *StatusNode) startDiscovery() error {
 		if len(n.config.ClusterConfig.RendezvousNodes) == 0 {
 			return errors.New("rendezvous node must be provided if rendezvous discovery is enabled")
 		}
-		maddrs := make(ma.Multiaddr, len(n.config.ClusterConfig.RendezvousNodes))
+		maddrs := make([]ma.Multiaddr, len(n.config.ClusterConfig.RendezvousNodes))
 		for i, addr := range n.config.ClusterConfig.RendezvousNodes {
 			var err error
 			maddrs[i], err = ma.NewMultiaddr(addr)
@@ -207,6 +207,7 @@ func (n *StatusNode) startDiscovery() error {
 			}
 		}
 		srv := n.gethNode.Server()
+		var err error
 		n.discovery, err = discovery.NewRendezvous(maddrs, srv.PrivateKey, srv.Self())
 		if err != nil {
 			return err
