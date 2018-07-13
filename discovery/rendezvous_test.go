@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"testing"
 	"time"
@@ -20,7 +19,7 @@ import (
 )
 
 func TestRendezvousDiscovery(t *testing.T) {
-	priv, _, err := lcrypto.GenerateKeyPairWithReader(lcrypto.RSA, 2048, rand.New(rand.NewSource(1)))
+	priv, _, err := lcrypto.GenerateKeyPair(lcrypto.Secp256k1, 0)
 	require.NoError(t, err)
 	laddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/7777"))
 	require.NoError(t, err)
@@ -32,7 +31,7 @@ func TestRendezvousDiscovery(t *testing.T) {
 	identity, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	node := discover.NewNode(discover.PubkeyID(&identity.PublicKey), net.IP{10, 10, 10, 10}, 10, 20)
-	c, err := NewRendezvous(srv.Addr(), identity, node)
+	c, err := NewRendezvous([]ma.Multiaddr{srv.Addr()}, identity, node)
 	require.NoError(t, err)
 	require.NoError(t, c.Start())
 	require.True(t, c.Running())
