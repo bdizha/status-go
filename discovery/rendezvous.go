@@ -107,8 +107,7 @@ func (r *Rendezvous) Discover(
 	found chan<- *discv5.Node, lookup chan<- bool) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	timePeriod := <-period
-	ticker := time.NewTicker(timePeriod)
+	ticker := time.NewTicker(<-period)
 	for {
 		select {
 		case new, ok := <-period:
@@ -116,7 +115,6 @@ func (r *Rendezvous) Discover(
 			if !ok {
 				return nil
 			}
-			timePeriod = new
 			ticker = time.NewTicker(new)
 		case <-ticker.C:
 			srv := r.servers[rand.Intn(len(r.servers))]
