@@ -35,6 +35,8 @@ var (
 	ErrWhisperClearIdentitiesFailure = errors.New("failed to clear whisper identities")
 	// ErrWhisperIdentityInjectionFailure injecting whisper identities has failed.
 	ErrWhisperIdentityInjectionFailure = errors.New("failed to inject identity into Whisper")
+	// ErrUnsupportedRPCMethod is for methods not supported by the RPC interface
+	ErrUnsupportedRPCMethod = errors.New("method is unsupported by RPC interface")
 )
 
 // StatusBackend implements Status.im service
@@ -60,7 +62,7 @@ func NewStatusBackend() *StatusBackend {
 	pendingSignRequests := sign.NewPendingRequests()
 	accountManager := account.NewManager(statusNode)
 	transactor := transactions.NewTransactor(pendingSignRequests)
-	personalAPI := personal.NewAPI(pendingSignRequests)
+	personalAPI := personal.NewAPI()
 	jailManager := jail.New(statusNode)
 	notificationManager := fcm.NewNotification(fcmServerKey)
 
@@ -236,6 +238,16 @@ func (b *StatusBackend) SendTransaction(ctx context.Context, args transactions.S
 	return b.transactor.SendTransaction(ctx, args)
 }
 
+// SignMessage checks the pwd vs the selected account and passes on the metadata
+// to personalAPI for message signature
+func (b *StatusBackend) SignMessage(rpcParams personal.Metadata) sign.Result {
+	verifiedAccount, err := b.getVerifiedAccount(rpcParams.Password)
+	if err != nil {
+		return sign.NewErrResult(err)
+	}
+	return b.personalAPI.Sign(rpcParams, verifiedAccount)
+}
+
 func (b *StatusBackend) getVerifiedAccount(password string) (*account.SelectedExtKey, error) {
 	selectedAccount, err := b.accountManager.SelectedAccount()
 	if err != nil {
@@ -316,10 +328,14 @@ func (b *StatusBackend) registerHandlers() error {
 		return hash.Hex(), err
 	})
 
-	rpcClient.RegisterHandler(params.PersonalSignMethodName, b.personalAPI.Sign)
+	rpcClient.RegisterHandler(params.PersonalSignMethodName, unsupportedMethodHandler)
 	rpcClient.RegisterHandler(params.PersonalRecoverMethodName, b.personalAPI.Recover)
 
 	return nil
+}
+
+func unsupportedMethodHandler(ctx context.Context, rpcParams ...interface{}) (interface{}, error) {
+	return nil, ErrUnsupportedRPCMethod
 }
 
 // ConnectionChange handles network state changes logic.
