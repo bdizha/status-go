@@ -47,71 +47,84 @@ var (
 )
 
 func main() {
-	exitCode := 1
-	writeExitMessageFunc := func() { logger.Info("Mailserver responded correctly", "address", enodeAddr) }
-	defer func() {
-		writeExitMessageFunc()
-		os.Exit(exitCode)
-	}()
-
 	initialize()
 
 	if enodeAddr == nil {
-		writeExitMessageFunc = func() { logger.Crit("No mailserver address specified", "enodeAddr", *enodeAddr) }
-		return
+		logger.Crit("No mailserver address specified", "enodeAddr", *enodeAddr)
+		os.Exit(1)
 	}
 
 	mailserverParsedNode, err := discv5.ParseNode(*enodeAddr)
 	if err != nil {
-		writeExitMessageFunc = func() { logger.Crit("Invalid mailserver address specified", "enodeAddr", *enodeAddr, "error", err) }
-		return
+		logger.Crit("Invalid mailserver address specified", "enodeAddr", *enodeAddr, "error", err)
+		os.Exit(1)
 	}
 
-	clientBackend, stopFunc, err := startClientNode()
-	defer stopFunc()
-	if err != nil {
-		return
+	verifyMailserverBehavior(mailserverParsedNode)
+	logger.Info("Mailserver responded correctly", "address", enodeAddr)
+	os.Exit(0)
+}
+
+func initialize() {
+	flag.Parse()
+
+	colors := !(*logWithoutColors)
+	if colors {
+		colors = terminal.IsTerminal(int(os.Stdin.Fd()))
 	}
+
+	if err := logutils.OverrideRootLog(*logLevel != "", *logLevel, *logFile, colors); err != nil {
+		stdlog.Fatalf("Error initializing logger: %s", err)
+	}
+}
+
+func verifyMailserverBehavior(mailserverNode *discv5.Node) {
+	clientBackend, err := startClientNode()
+	if err != nil {
+		logger.Error("Node start failed", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = clientBackend.StopNode() }()
 
 	clientNode := clientBackend.StatusNode()
 	clientWhisperService, err := clientNode.WhisperService()
 	if err != nil {
-		writeExitMessageFunc = func() { logger.Error("Could not retrieve Whisper service", "error", err) }
-		return
+		logger.Error("Could not retrieve Whisper service", "error", err)
+		os.Exit(1)
 	}
 	clientShhExtService, err := clientNode.ShhExtService()
 	if err != nil {
-		writeExitMessageFunc = func() { logger.Error("Could not retrieve shhext service", "error", err) }
-		return
+		logger.Error("Could not retrieve shhext service", "error", err)
+		os.Exit(1)
 	}
 
 	// add mailserver peer to client
 	clientErrCh := helpers.WaitForPeerAsync(clientNode.Server(), *enodeAddr, p2p.PeerEventTypeAdd, 5*time.Second)
 	err = clientNode.AddPeer(*enodeAddr)
 	if err != nil {
-		writeExitMessageFunc = func() { logger.Error("Failed to add mailserver peer to client", "error", err) }
-		return
+		logger.Error("Failed to add mailserver peer to client", "error", err)
+		os.Exit(1)
 	}
 
 	err = <-clientErrCh
 	if err != nil {
-		writeExitMessageFunc = func() { logger.Error("Error detected while waiting for mailserver peer to be added", "error", err) }
-		return
+		logger.Error("Error detected while waiting for mailserver peer to be added", "error", err)
+		os.Exit(1)
 	}
 
 	// add mailserver sym key
 	mailServerKeyID, err := clientWhisperService.AddSymKeyFromPassword(mailboxPassword)
 	if err != nil {
-		writeExitMessageFunc = func() { logger.Error("Error adding mailserver sym key to client peer", "error", err) }
-		return
+		logger.Error("Error adding mailserver sym key to client peer", "error", err)
+		os.Exit(1)
 	}
 
-	mailboxPeer := mailserverParsedNode.ID[:]
-	mailboxPeerStr := mailserverParsedNode.ID.String()
+	mailboxPeer := mailserverNode.ID[:]
+	mailboxPeerStr := mailserverNode.ID.String()
 	err = clientWhisperService.AllowP2PMessagesFromPeer(mailboxPeer)
 	if err != nil {
-		writeExitMessageFunc = func() { logger.Error("Failed to allow P2P messages from peer", "error", err) }
-		return
+		logger.Error("Failed to allow P2P messages from peer", "error", err)
+		os.Exit(1)
 	}
 
 	clientRPCClient := clientNode.RPCClient()
@@ -119,8 +132,8 @@ func main() {
 	// TODO: Replace chat implementation with github.com/status-im/status-go-sdk
 	_, topic, _, err := joinPublicChat(clientWhisperService, clientRPCClient, *publicChannel)
 	if err != nil {
-		writeExitMessageFunc = func() { logger.Error("Failed to join public chat", "error", err) }
-		return
+		logger.Error("Failed to join public chat", "error", err)
+		os.Exit(1)
 	}
 
 	// watch for envelopes to be available in filters in the client
@@ -144,41 +157,23 @@ func main() {
 			SymKeyID:       mailServerKeyID,
 		})
 	if err != nil {
-		exitCode = 2
-		writeExitMessageFunc = func() { logger.Error("Error requesting historic messages from mailserver", "error", err) }
-		return
+		logger.Error("Error requesting historic messages from mailserver", "error", err)
+		os.Exit(2)
 	}
 	requestID := common.BytesToHash(requestIDBytes)
 
 	// wait for mailserver response
 	resp, err := waitForMailServerResponse(mailServerResponseWatcher, requestID, 10*time.Second)
 	if err != nil {
-		exitCode = 3
-		writeExitMessageFunc = func() { logger.Error("Error waiting for mailserver response", "error", err) }
-		return
+		logger.Error("Error waiting for mailserver response", "error", err)
+		os.Exit(3)
 	}
 
 	// wait for last envelope sent by the mailserver to be available for filters
 	err = waitForEnvelopeEvents(envelopeAvailableWatcher, []string{resp.LastEnvelopeHash.String()}, whisper.EventEnvelopeAvailable)
 	if err != nil {
-		exitCode = 4
-		writeExitMessageFunc = func() { logger.Error("Error waiting for envelopes to be available to client filter", "error", err) }
-		return
-	}
-
-	exitCode = 0
-}
-
-func initialize() {
-	flag.Parse()
-
-	colors := !(*logWithoutColors)
-	if colors {
-		colors = terminal.IsTerminal(int(os.Stdin.Fd()))
-	}
-
-	if err := logutils.OverrideRootLog(*logLevel != "", *logLevel, *logFile, colors); err != nil {
-		stdlog.Fatalf("Error initializing logger: %s", err)
+		logger.Error("Error waiting for envelopes to be available to client filter", "error", err)
+		os.Exit(4)
 	}
 }
 
@@ -230,17 +225,17 @@ func whisperConfig(nodeConfig *params.NodeConfig) (*params.NodeConfig, error) {
 	return nodeConfig, nil
 }
 
-func startClientNode() (*api.StatusBackend, func(), error) {
+func startClientNode() (*api.StatusBackend, error) {
 	config, err := makeNodeConfig()
 	if err != nil {
-		return nil, func() { logger.Error("Error creating node config", "error", err) }, err
+		return nil, err
 	}
 	clientBackend := api.NewStatusBackend()
 	err = clientBackend.StartNode(config)
 	if err != nil {
-		return nil, func() { logger.Error("Node start failed", "error", err) }, err
+		return nil, err
 	}
-	return clientBackend, func() { _ = clientBackend.StopNode() }, err
+	return clientBackend, err
 }
 
 func joinPublicChat(w *whisper.Whisper, rpcClient *rpc.Client, name string) (string, whisper.TopicType, string, error) {
