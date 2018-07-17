@@ -2,8 +2,7 @@
 package main
 
 import (
-	"encoding/hex"
-	"encoding/json"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,8 +10,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -25,6 +22,7 @@ import (
 	"github.com/status-im/status-go/logutils"
 	"github.com/status-im/status-go/params"
 	"github.com/status-im/status-go/rpc"
+	"github.com/status-im/status-go/services/shhext"
 	"github.com/status-im/status-go/t/helpers"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -56,16 +54,7 @@ func main() {
 		os.Exit(exitCode)
 	}()
 
-	flag.Parse()
-
-	colors := !(*logWithoutColors)
-	if colors {
-		colors = terminal.IsTerminal(int(os.Stdin.Fd()))
-	}
-
-	if err := logutils.OverrideRootLog(*logLevel != "", *logLevel, *logFile, colors); err != nil {
-		stdlog.Fatalf("Error initializing logger: %s", err)
-	}
+	initialize()
 
 	if enodeAddr == nil {
 		writeExitMessageFunc = func() { logger.Crit("No mailserver address specified", "enodeAddr", *enodeAddr) }
@@ -84,15 +73,21 @@ func main() {
 		return
 	}
 
-	clientWhisperService, err := clientBackend.StatusNode().WhisperService()
+	clientNode := clientBackend.StatusNode()
+	clientWhisperService, err := clientNode.WhisperService()
 	if err != nil {
 		writeExitMessageFunc = func() { logger.Error("Could not retrieve Whisper service", "error", err) }
 		return
 	}
+	clientShhExtService, err := clientNode.ShhExtService()
+	if err != nil {
+		writeExitMessageFunc = func() { logger.Error("Could not retrieve shhext service", "error", err) }
+		return
+	}
 
 	// add mailserver peer to client
-	clientErrCh := helpers.WaitForPeerAsync(clientBackend.StatusNode().Server(), *enodeAddr, p2p.PeerEventTypeAdd, 5*time.Second)
-	err = clientBackend.StatusNode().AddPeer(*enodeAddr)
+	clientErrCh := helpers.WaitForPeerAsync(clientNode.Server(), *enodeAddr, p2p.PeerEventTypeAdd, 5*time.Second)
+	err = clientNode.AddPeer(*enodeAddr)
 	if err != nil {
 		writeExitMessageFunc = func() { logger.Error("Failed to add mailserver peer to client", "error", err) }
 		return
@@ -119,7 +114,7 @@ func main() {
 		return
 	}
 
-	clientRPCClient := clientBackend.StatusNode().RPCClient()
+	clientRPCClient := clientNode.RPCClient()
 
 	// TODO: Replace chat implementation with github.com/status-im/status-go-sdk
 	_, topic, _, err := joinPublicChat(clientWhisperService, clientRPCClient, *publicChannel)
@@ -139,19 +134,21 @@ func main() {
 	defer sub.Unsubscribe()
 
 	// request messages from mailbox
-	requestID, err := requestHistoricMessages(
-		clientRPCClient,
-		mailboxPeerStr,
-		mailServerKeyID,
-		topic.String(),
-		clientWhisperService.GetCurrentTime().Add(-time.Duration(*period)*time.Second),
-		time.Unix(0, 0),
-		1, "")
+	shhextAPI := shhext.NewPublicAPI(clientShhExtService)
+	requestIDBytes, err := shhextAPI.RequestMessages(context.TODO(),
+		shhext.MessagesRequest{
+			MailServerPeer: mailboxPeerStr,
+			From:           uint32(clientWhisperService.GetCurrentTime().Add(-time.Duration(*period) * time.Second).Unix()),
+			Limit:          1,
+			Topic:          topic,
+			SymKeyID:       mailServerKeyID,
+		})
 	if err != nil {
 		exitCode = 2
 		writeExitMessageFunc = func() { logger.Error("Error requesting historic messages from mailserver", "error", err) }
 		return
 	}
+	requestID := common.BytesToHash(requestIDBytes)
 
 	// wait for mailserver response
 	resp, err := waitForMailServerResponse(mailServerResponseWatcher, requestID, 10*time.Second)
@@ -170,6 +167,19 @@ func main() {
 	}
 
 	exitCode = 0
+}
+
+func initialize() {
+	flag.Parse()
+
+	colors := !(*logWithoutColors)
+	if colors {
+		colors = terminal.IsTerminal(int(os.Stdin.Fd()))
+	}
+
+	if err := logutils.OverrideRootLog(*logLevel != "", *logLevel, *logFile, colors); err != nil {
+		stdlog.Fatalf("Error initializing logger: %s", err)
+	}
 }
 
 // makeNodeConfig parses incoming CLI options and returns node configuration object
@@ -233,47 +243,6 @@ func startClientNode() (*api.StatusBackend, func(), error) {
 	return clientBackend, func() { _ = clientBackend.StopNode() }, err
 }
 
-// requestHistoricMessages asks a mailnode to resend messages.
-func requestHistoricMessages(rpcCli *rpc.Client, mailboxEnode, mailServerKeyID, topic string, from, to time.Time, limit int, cursor string) (common.Hash, error) {
-	resp := rpcCli.CallRaw(`{
-		"jsonrpc": "2.0",
-		"id": 2,
-		"method": "shhext_requestMessages",
-		"params": [{
-					"mailServerPeer":"` + mailboxEnode + `",
-					"topic":"` + topic + `",
-					"symKeyID":"` + mailServerKeyID + `",
-					"from":` + strconv.FormatInt(from.Unix(), 10) + `,
-					"to":` + strconv.FormatInt(to.Unix(), 10) + `,
-					"limit": ` + fmt.Sprintf("%d", limit) + `,
-					"cursor": "` + cursor + `"
-		}]
-	}`)
-	reqMessagesResp := baseRPCResponse{}
-	err := json.Unmarshal([]byte(resp), &reqMessagesResp)
-	logger.Info(resp)
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	if reqMessagesResp.Error != nil {
-		return common.Hash{}, createErrorFromJSONError(reqMessagesResp.Error)
-	}
-
-	switch hash := reqMessagesResp.Result.(type) {
-	case string:
-		if !strings.HasPrefix(hash, "0x") {
-			return common.Hash{}, errors.New("missing 0x prefix in shhext_requestMessages RPC call response")
-		}
-		b, err := hex.DecodeString(hash[2:])
-		return common.BytesToHash(b), err
-	default:
-		err = fmt.Errorf("expected a hash, received %+v", reqMessagesResp.Result)
-	}
-
-	return common.Hash{}, err
-}
-
 func joinPublicChat(w *whisper.Whisper, rpcClient *rpc.Client, name string) (string, whisper.TopicType, string, error) {
 	keyID, err := w.AddSymKeyFromPassword(name)
 	if err != nil {
@@ -288,36 +257,10 @@ func joinPublicChat(w *whisper.Whisper, rpcClient *rpc.Client, name string) (str
 	fullTopic := h.Sum(nil)
 	topic := whisper.BytesToTopic(fullTopic)
 
-	filterID, err := createGroupChatMessageFilter(rpcClient, keyID, topic.String())
+	whisperAPI := whisper.NewPublicWhisperAPI(w)
+	filterID, err := whisperAPI.NewMessageFilter(whisper.Criteria{SymKeyID: keyID, Topics: []whisper.TopicType{topic}})
 
 	return keyID, topic, filterID, err
-}
-
-// createGroupChatMessageFilter create message filter with symmetric encryption.
-func createGroupChatMessageFilter(rpcCli *rpc.Client, symkeyID string, topic string) (string, error) {
-	resp := rpcCli.CallRaw(`{
-			"jsonrpc": "2.0",
-			"method": "shh_newMessageFilter", "params": [
-				{"type": "sym", "symKeyID": "` + symkeyID + `", "topics": [ "` + topic + `"], "allowP2P":true}
-			],
-			"id": 1
-		}`)
-
-	msgFilterResp := returnedIDResponse{}
-	err := json.Unmarshal([]byte(resp), &msgFilterResp)
-	messageFilterID := msgFilterResp.Result
-	if err == nil && msgFilterResp.Error != nil {
-		err = createErrorFromJSONError(msgFilterResp.Error)
-	}
-	return messageFilterID, err
-}
-
-func createErrorFromJSONError(jsonError interface{}) error {
-	errorObjMap := jsonError.(map[string]interface{})
-	if errorObjMap != nil {
-		return fmt.Errorf("error %d: %v", errorObjMap["code"], errorObjMap["message"])
-	}
-	return nil
 }
 
 func waitForMailServerResponse(events chan whisper.EnvelopeEvent, requestID common.Hash, timeout time.Duration) (*whisper.MailServerResponse, error) {
@@ -338,20 +281,20 @@ func waitForMailServerResponse(events chan whisper.EnvelopeEvent, requestID comm
 	}
 }
 
-func decodeMailServerResponse(event whisper.EnvelopeEvent) (response *whisper.MailServerResponse, err error) {
+func decodeMailServerResponse(event whisper.EnvelopeEvent) (*whisper.MailServerResponse, error) {
 	switch event.Event {
 	case whisper.EventMailServerRequestCompleted:
 		resp, ok := event.Data.(*whisper.MailServerResponse)
 		if !ok {
-			err = errors.New("failed to convert event to a *MailServerResponse")
+			return nil, errors.New("failed to convert event to a *MailServerResponse")
 		}
 
-		response = resp
+		return resp, nil
 	case whisper.EventMailServerRequestExpired:
-		err = errors.New("no messages available from mailserver")
+		return nil, errors.New("no messages available from mailserver")
+	default:
+		return nil, errors.New("unexpected event type")
 	}
-
-	return
 }
 
 func waitForEnvelopeEvents(events chan whisper.EnvelopeEvent, hashes []string, event whisper.EventType) error {
@@ -375,13 +318,4 @@ func waitForEnvelopeEvents(events chan whisper.EnvelopeEvent, hashes []string, e
 			return fmt.Errorf("timed out while waiting for event on envelopes. event: %s", event)
 		}
 	}
-}
-
-type returnedIDResponse struct {
-	Result string
-	Error  interface{}
-}
-type baseRPCResponse struct {
-	Result interface{}
-	Error  interface{}
 }
