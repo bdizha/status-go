@@ -477,8 +477,8 @@
   name = "github.com/libp2p/go-libp2p-peer"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "e8858116ad7f0a54dfc2bb6af554f2024221d19c"
-  version = "v2.3.4"
+  revision = "a26c4b782bfe3b2570c539f69dc7777a45117a90"
+  version = "v2.3.5"
 
 [[projects]]
   digest = "1:0da09c35d9ab0b0db79ecdb14b7596744a3bff00e6eb50cda8a8d2d099495004"
@@ -766,6 +766,14 @@
   version = "v1.1"
 
 [[projects]]
+  branch = "master"
+  digest = "1:5d3c51d0f96ff0b228582e5e36295a33da8e16d106cd9dc31538096bd35dce1e"
+  name = "github.com/status-im/go-multiaddr-ethv4"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "17cb1ad76379d65e802eacc786d8f67eebd7cd6d"
+
+[[projects]]
   digest = "1:a90e401e8487588e082ef4a5600c9bddf8fbd5d5dbc8f85f44cf902d892c6a58"
   name = "github.com/status-im/go-web3js"
   packages = ["."]
@@ -775,7 +783,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:fe5ab728f84d61af5ecbd12fbfc9e5efb5c7c6aca873ce7befd5ba292ca57bbc"
+  digest = "1:9013df03f867f40317b3ff0cdc5e2c61cb2b16ea10b82b13356148eb2d1a6c09"
   name = "github.com/status-im/rendezvous"
   packages = [
     ".",
@@ -783,7 +791,7 @@
     "server",
   ]
   pruneopts = "NUT"
-  revision = "92b576ac915a7d7b20d6aff71817c4663c5a40c2"
+  revision = "df7673597b7f2fd72b52a20813acd4431041562d"
 
 [[projects]]
   digest = "1:4af54ea5146ed59dbc4161a41044e396c1df4786eabe07858d2017e201348a8d"
