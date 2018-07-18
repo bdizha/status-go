@@ -14,8 +14,9 @@ import (
 	"github.com/status-im/status-go/params"
 	"github.com/status-im/status-go/profiling"
 	"github.com/status-im/status-go/sign"
-	"gopkg.in/go-playground/validator.v9"
 	"github.com/status-im/status-go/signal"
+	"github.com/status-im/status-go/transactions"
+	"gopkg.in/go-playground/validator.v9"
 )
 
 // All general log messages in this package should be routed through this logger.
@@ -226,6 +227,39 @@ func ApproveSignRequest(id, password *C.char) *C.char {
 	result := statusBackend.ApproveSignRequest(C.GoString(id), C.GoString(password))
 
 	return prepareApproveSignRequestResponse(result, id)
+}
+
+// SendTransaction converts RPC args and calls backend.SendTransaction
+// nolint: deadcode
+func SendTransaction(txArgsJSON, password *C.char) *C.char {
+	txArgs, err := transactions.UnmarshalSendTxRPCParams(C.GoString(txArgsJSON))
+	if err != nil {
+		return prepareSignResponse(sign.NewErrResult(err))
+	}
+	result := statusBackend.SendTransaction(txArgs, C.GoString(password))
+	return prepareSignResponse(result)
+}
+
+// prepareSignResponse based on a sign.Result prepares the binding
+// response.
+func prepareSignResponse(result sign.Result) *C.char {
+	errString := ""
+	if result.Error != nil {
+		fmt.Fprintln(os.Stderr, result.Error)
+		errString = result.Error.Error()
+	}
+
+	out := SignRequestResult{
+		Hash:  result.Response.Hex(),
+		Error: errString,
+	}
+	outBytes, err := json.Marshal(out)
+	if err != nil {
+		logger.Error("failed to marshal Sign output", "error", err)
+		return makeJSONResponse(err)
+	}
+
+	return C.CString(string(outBytes))
 }
 
 // prepareApproveSignRequestResponse based on a sign.Result prepares the binding
