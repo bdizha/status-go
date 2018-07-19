@@ -246,7 +246,6 @@ func prepareSignResponse(result sign.Result) *C.char {
 	errString := ""
 	if result.Error != nil {
 		logger.Error("Sign result contains error", "error", result.Error)
-		fmt.Fprintln
 		errString = result.Error.Error()
 	}
 
