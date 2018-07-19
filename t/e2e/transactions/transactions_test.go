@@ -172,7 +172,7 @@ func (s *TransactionsTestSuite) testSendContractTx(setInputAndDataValue initFunc
 		return
 	}
 	s.NoError(result.Error, "cannot send transaction")
-	s.False(reflect.DeepEqual(result.Response.Hash(), gethcommon.Hash{}), "transaction was never queued or completed")
+	s.False(reflect.DeepEqual(result.Response.Hash(), gethcommon.Hash{}))
 	s.NoError(s.Backend.Logout())
 }
 
@@ -195,7 +195,7 @@ func (s *TransactionsTestSuite) TestSendEther() {
 
 	s.NoError(result.Error, "cannot send transaction")
 
-	s.False(reflect.DeepEqual(result.Response.Hash(), gethcommon.Hash{}), "transaction was never queued or completed")
+	s.False(reflect.DeepEqual(result.Response.Hash(), gethcommon.Hash{}))
 }
 
 func (s *TransactionsTestSuite) TestSendEtherTxUpstream() {

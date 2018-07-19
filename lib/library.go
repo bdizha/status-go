@@ -245,7 +245,8 @@ func SendTransaction(txArgsJSON, password *C.char) *C.char {
 func prepareSignResponse(result sign.Result) *C.char {
 	errString := ""
 	if result.Error != nil {
-		fmt.Fprintln(os.Stderr, result.Error)
+		logger.Error("Sign result contains error", "error", result.Error)
+		fmt.Fprintln
 		errString = result.Error.Error()
 	}
 
