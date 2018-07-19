@@ -1,9 +1,11 @@
 package x3dh
 
 import (
-  "crypto/ecdsa"
   "fmt"
+  "errors"
+  "crypto/ecdsa"
 
+  "github.com/golang/protobuf/jsonpb"
   "github.com/ethereum/go-ethereum/crypto"
   "github.com/ethereum/go-ethereum/crypto/ecies"
 )
@@ -12,14 +14,15 @@ const (
   sskLen = 16
 )
 
+func (bundle Bundle) ToJSON() (string, error) {
+  ma := jsonpb.Marshaler{};
+  return ma.MarshalToString(&bundle);
+}
 
-func (bundle Bundle) Serialize() string {
-  return fmt.Sprintf(
-    "{\"identity\": \"%x\", \"preKey\": \"%x\", \"sig\": \"%x\"}",
-    bundle.identityKey,
-    bundle.signedPreKey,
-    bundle.signature,
-  )
+func FromJSON(str string) (*Bundle, error) {
+  var bundle Bundle;
+  err := jsonpb.UnmarshalString(str, &bundle);
+  return &bundle, err
 }
 
 func NewBundle(identity *ecdsa.PrivateKey) (* Bundle, * ecdsa.PrivateKey, error) {
@@ -39,31 +42,98 @@ func NewBundle(identity *ecdsa.PrivateKey) (* Bundle, * ecdsa.PrivateKey, error)
   }
 
   bundle := Bundle {
-    identityKey: compressedIdentityKey,
-    signedPreKey: compressedPreKey,
-    signature: signature,
+    Identity: compressedIdentityKey,
+    SignedPreKey: compressedPreKey,
+    Signature: signature,
   }
 
   return &bundle, preKey, nil
 }
 
+func verifyBundle(bundle *Bundle, bundleIdentityKey *ecdsa.PublicKey) error {
+
+  recoveredKey, err := crypto.SigToPub(
+    crypto.Keccak256(bundle.GetSignedPreKey()),
+    bundle.GetSignature(),
+  )
+
+  if err != nil {
+    return err
+  }
+
+  fmt.Printf("%x %x", recoveredKey.Y, bundleIdentityKey.Y);
+
+  if crypto.PubkeyToAddress(*recoveredKey) != crypto.PubkeyToAddress(*bundleIdentityKey) {
+    return errors.New("Identity key and signature mismatch")
+  }
+
+  return nil
+}
+
+func x3dh(
+  bundleIdentityKey *ecies.PublicKey,
+  bundleSignedPreKey *ecies.PublicKey,
+  myIdentityKey *ecies.PrivateKey,
+  myEphemeralKey *ecies.PrivateKey,
+) ([]byte, error) {
+  dh1, err := myIdentityKey.GenerateShared(
+    bundleSignedPreKey,
+    sskLen,
+    sskLen,
+  )
+  if err != nil {
+    return nil, err
+  }
+
+  dh2, err := myEphemeralKey.GenerateShared(
+    bundleIdentityKey,
+    sskLen,
+    sskLen,
+  )
+  if err != nil {
+    return nil, err
+  }
+
+  dh3, err := myEphemeralKey.GenerateShared(
+    bundleSignedPreKey,
+    sskLen,
+    sskLen,
+  )
+  if err != nil {
+    return nil, err
+  }
+
+  secretInput := append(append(dh1, dh2...), dh3...)
+
+  sharedSecret := crypto.Keccak256(secretInput)
+
+  return sharedSecret, nil
+}
+
 func ProcessBundle(bundle *Bundle, prv *ecdsa.PrivateKey) ([]byte, error) {
-  identityKey, err := crypto.DecompressPubkey(bundle.identityKey)
+
+  bundleIdentityKey, err := crypto.DecompressPubkey(bundle.GetIdentity())
+  if err != nil {
+    return nil, err
+  }
+
+  bundleSignedPreKey, err := crypto.DecompressPubkey(bundle.GetIdentity())
+  if err != nil {
+    return nil, err
+  }
+
+  err = verifyBundle(bundle, bundleIdentityKey);
 
   if err != nil {
     return nil, err
   }
 
-  prv0 := ecies.ImportECDSA(prv)
-  identityKey0 := ecies.ImportECDSAPublic(identityKey)
+  ephemeralKey1, err := crypto.GenerateKey()
 
-  return prv0.GenerateShared(identityKey0, sskLen, sskLen)
+  return x3dh(
+    ecies.ImportECDSAPublic(bundleIdentityKey),
+    ecies.ImportECDSAPublic(bundleSignedPreKey),
+    ecies.ImportECDSA(prv),
+    ecies.ImportECDSA(ephemeralKey1),
+  )
 }
-
-type Bundle struct {
-  identityKey     []byte
-  signedPreKey    []byte
-  signature       []byte
-}
-
-
