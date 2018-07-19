@@ -1,8 +1,10 @@
 package x3dh
 
 import (
-	"crypto/ecdsa"
 	"errors"
+
+	"crypto/ecdsa"
+        "crypto/x509"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
@@ -13,7 +15,7 @@ const (
 	sskLen = 16
 )
 
-func (bundle Bundle) ToJSON() (string, error) {
+func (bundle BundleContainer) ToJSON() (string, error) {
 	ma := jsonpb.Marshaler{}
 	return ma.MarshalToString(&bundle)
 }
@@ -24,11 +26,11 @@ func FromJSON(str string) (*Bundle, error) {
 	return &bundle, err
 }
 
-func NewBundle(identity *ecdsa.PrivateKey) (*Bundle, *ecdsa.PrivateKey, error) {
+func NewBundleContainer(identity *ecdsa.PrivateKey) (*BundleContainer, error) {
 	preKey, err := crypto.GenerateKey()
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	compressedPreKey := crypto.CompressPubkey(&preKey.PublicKey)
@@ -37,8 +39,10 @@ func NewBundle(identity *ecdsa.PrivateKey) (*Bundle, *ecdsa.PrivateKey, error) {
 	signature, err := crypto.Sign(crypto.Keccak256(compressedPreKey), identity)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+
+        encodedPreKey, err := x509.MarshalECPrivateKey(preKey)
 
 	bundle := Bundle{
 		Identity:     compressedIdentityKey,
@@ -46,7 +50,10 @@ func NewBundle(identity *ecdsa.PrivateKey) (*Bundle, *ecdsa.PrivateKey, error) {
 		Signature:    signature,
 	}
 
-	return &bundle, preKey, nil
+        return &BundleContainer {
+          Bundle: &bundle,
+          PrivateSignedPreKey: encodedPreKey,
+        }, nil
 }
 
 func verifyBundle(bundle *Bundle, bundleIdentityKey *ecdsa.PublicKey) error {

@@ -7,3 +7,8 @@ message Bundle {
   bytes signed_pre_key = 2;
   bytes signature = 3;
 }
+
+message BundleContainer {
+  Bundle bundle = 1;
+  bytes private_signed_pre_key = 2;
+}
