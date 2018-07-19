@@ -1,10 +1,8 @@
 package x3dh
 
 import (
-	"strings"
 	"testing"
 
-	"encoding/hex"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
@@ -12,32 +10,28 @@ import (
 )
 
 const (
-	privateKey1 = "00000000000000000000000000000000"
-	privateKey2 = "11111111111111111111111111111111"
+	alicePrivateKey = "00000000000000000000000000000000"
+        aliceEphemeralKey = "11111111111111111111111111111111"
+	bobPrivateKey = "22222222222222222222222222222222"
+	bobSignedPreKey = "33333333333333333333333333333333"
 
-	pubKey     = "04760c4460e5336ac9bbd87952a3c7ec4363fc0a97bd31c86430806e287b437fd1b01abc6e1db640cf3106b520344af1d58b00b57823db3e1407cbc433e1b6d04d"
-	jsonBundle = "{\"identity\":\"Ai7VV/WtM2sxpJhX5OlmSVSsMzhaogqT4tZL/n8I9RJ3\",\"signedPreKey\":\"A3YMRGDlM2rJu9h5UqPH7ENj/AqXvTHIZDCAbih7Q3/R\",\"signature\":\"V/WbDiANpbmAV8aB3KUKDMBP/htduOdcpGbA9rcJljNTDATz15iUTaD80Lge653ER2JTihIy01DjAo7fhjk/WwE=\"}"
+        jsonBundle = "{\"identity\":\"ApCZnbv0MDS/+x3VPqwetMM6TqHE9Iulhc/eODCEDwVV\",\"signedPreKey\":\"AjxyrdtP3wmvlPDJTX/pKjhqfnDPih2FkWOGuyU1x7Gx\",\"signature\":\"P1ax7dSQmCjr/UfPFB8dxk0FowfSP7R7KV8F/WuimwtnvJkz3yT+oNDdlbm4ddDjOFjwTVDscPK2qbraTkkg9gA=\"}"
 )
 
-var sharedKey = []byte{0x42, 0xe9, 0xa9, 0x42, 0xdb, 0xc9, 0x32, 0x9e, 0xaa, 0x3d, 0x3f, 0xa7, 0x75, 0x56, 0x7f, 0x4a, 0x3f, 0x8d, 0x2e, 0xb, 0xb0, 0x6b, 0x67, 0x3a, 0x97, 0x79, 0x76, 0xd6, 0xa5, 0x9b, 0x5f, 0xa9}
+var sharedKey = []byte{0xa4, 0xe9, 0x23, 0xd0, 0xaf, 0x8f, 0xe7, 0x8a, 0x5, 0x63, 0x63, 0xbe, 0x20, 0xe7, 0x1c, 0xa, 0x58, 0xe5, 0x69, 0xea, 0x8f, 0xc1, 0xf7, 0x92, 0x89, 0xec, 0xa1, 0xd, 0x9f, 0x68, 0x13, 0x3a}
 
-func testBundle() (*Bundle, error) {
-	privateKey, err := crypto.ToECDSA([]byte(privateKey1))
+func bobBundle() (*Bundle, error) {
+	privateKey, err := crypto.ToECDSA([]byte(bobPrivateKey))
 	if err != nil {
 		return nil, err
 	}
 
-	byteSignedPreKey, err := hex.DecodeString(pubKey)
+	signedPreKey, err := crypto.ToECDSA([]byte(bobSignedPreKey))
 	if err != nil {
 		return nil, err
 	}
 
-	signedPreKey, err := crypto.UnmarshalPubkey(byteSignedPreKey)
-	if err != nil {
-		return nil, err
-	}
-
-	compressedPreKey := crypto.CompressPubkey(signedPreKey)
+	compressedPreKey := crypto.CompressPubkey(&signedPreKey.PublicKey)
 
 	signature, err := crypto.Sign(crypto.Keccak256(compressedPreKey), privateKey)
 	if err != nil {
@@ -54,7 +48,7 @@ func testBundle() (*Bundle, error) {
 }
 
 func TestNewBundle(t *testing.T) {
-	privateKey, err := crypto.ToECDSA([]byte(strings.Repeat("0", 32)))
+	privateKey, err := crypto.ToECDSA([]byte(alicePrivateKey))
 
 	assert.Nil(t, err, "Private key should be generated without errors")
 
@@ -79,7 +73,7 @@ func TestNewBundle(t *testing.T) {
 
 func TestToJSON(t *testing.T) {
 
-	bundle, err := testBundle()
+	bundle, err := bobBundle()
 
 	assert.Nil(t, err, "Test bundle should be generated without errors")
 
@@ -97,7 +91,7 @@ func TestToJSON(t *testing.T) {
 
 func TestFromJSON(t *testing.T) {
 
-	expectedBundle, err := testBundle()
+	expectedBundle, err := bobBundle()
 	assert.Nil(t, err, "Test bundle should be generated without errors")
 
 	actualBundle, err := FromJSON(jsonBundle)
@@ -112,44 +106,70 @@ func TestFromJSON(t *testing.T) {
 	)
 }
 
-func TestX3dh(t *testing.T) {
-	bundle, err := testBundle()
-	assert.Nil(t, err, "Test bundle should be generated without errors")
+// Alice wants to send a message to Bob
+func TestX3dhActive(t *testing.T) {
 
-	bundleIdentityKey, err := crypto.DecompressPubkey(bundle.GetIdentity())
+	bobIdentityKey, err := crypto.ToECDSA([]byte(bobPrivateKey))
 	assert.Nil(t, err, "Bundle identity key should be generated without errors")
 
-	bundleSignedPreKey, err := crypto.DecompressPubkey(bundle.GetIdentity())
+	bobSignedPreKey, err := crypto.ToECDSA([]byte(bobSignedPreKey))
 	assert.Nil(t, err, "Bundle signed pre key should be generated without errors")
 
-	privateKey, err := crypto.ToECDSA([]byte(privateKey1))
+	aliceIdentityKey, err := crypto.ToECDSA([]byte(alicePrivateKey))
 	assert.Nil(t, err, "private key should be generated without errors")
 
-	ephemeralKey1, err := crypto.ToECDSA([]byte(privateKey1))
+	aliceEphemeralKey, err := crypto.ToECDSA([]byte(aliceEphemeralKey))
 	assert.Nil(t, err, "ephemeral key should be generated without errors")
 
-	x3dh, err := x3dh(
-		ecies.ImportECDSAPublic(bundleIdentityKey),
-		ecies.ImportECDSAPublic(bundleSignedPreKey),
-		ecies.ImportECDSA(privateKey),
-		ecies.ImportECDSA(ephemeralKey1),
+	x3dh, err := x3dhActive(
+		ecies.ImportECDSA(aliceIdentityKey),
+		ecies.ImportECDSAPublic(&bobSignedPreKey.PublicKey),
+		ecies.ImportECDSA(aliceEphemeralKey),
+		ecies.ImportECDSAPublic(&bobIdentityKey.PublicKey),
 	)
 
 	assert.Nil(t, err, "Shared key should be generated without errors")
 	assert.Equalf(t, sharedKey, x3dh, "Should generate the correct key")
 }
 
-func TestProcessBundle(t *testing.T) {
-	bundle, err := testBundle()
+// Bob receives a message from Alice
+func TestPerformX3DHPassive(t *testing.T) {
 
-	assert.Nil(t, err, "Test bundle should be generated without errors")
+  alicePrivateKey, err := crypto.ToECDSA([]byte(alicePrivateKey))
+  assert.Nil(t, err, "Private key should be generated without errors")
 
-	privateKey, err := crypto.ToECDSA([]byte(privateKey2))
+  bobSignedPreKey, err := crypto.ToECDSA([]byte(bobSignedPreKey))
+  assert.Nil(t, err, "Private key should be generated without errors")
 
-	assert.Nil(t, err, "Private key should be imported without errors")
+  aliceEphemeralKey, err := crypto.ToECDSA([]byte(aliceEphemeralKey))
+  assert.Nil(t, err, "ephemeral key should be generated without errors")
 
-	actual, err := ProcessBundle(bundle, privateKey)
+  bobPrivateKey, err := crypto.ToECDSA([]byte(bobPrivateKey))
+  assert.Nil(t, err, "Private key should be generated without errors")
 
-	assert.Nil(t, err, "no error should be reported")
-	assert.NotNil(t, actual, "A key should be generated")
+  x3dh, err := PerformPassiveX3DH(
+    &alicePrivateKey.PublicKey,
+    bobSignedPreKey,
+    &aliceEphemeralKey.PublicKey,
+    bobPrivateKey,
+  )
+
+  assert.Nil(t, err, "Shared key should be generated without errors")
+  assert.Equalf(t, sharedKey, x3dh, "Should generate the correct key")
+}
+
+func TestPerformActiveX3DH(t *testing.T) {
+  bundle, err := bobBundle()
+
+  assert.Nil(t, err, "Test bundle should be generated without errors")
+
+  privateKey, err := crypto.ToECDSA([]byte(bobPrivateKey))
+
+  assert.Nil(t, err, "Private key should be imported without errors")
+
+  actualSharedSecret, actualEphemeralKey, err := PerformActiveX3DH(bundle, privateKey)
+
+  assert.Nil(t, err, "no error should be reported")
+  assert.NotNil(t, actualEphemeralKey, "An ephemeral key-pair should be generated")
+  assert.NotNil(t, actualSharedSecret, "A shared key should be generated")
 }

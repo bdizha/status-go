@@ -456,7 +456,7 @@ func appendIf(condition bool, services []gethnode.ServiceConstructor, service ge
 	return append(services, service)
 }
 
-func (b *StatusBackend) CreateBundle() (string, error) {
+func (b *StatusBackend) CreateX3DHBundle() (string, error) {
   selectedAccount, err := b.AccountManager().SelectedAccount()
   if selectedAccount == nil || err == account.ErrNoAccountSelected {
     return "", nil

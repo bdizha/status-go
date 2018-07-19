@@ -61,8 +61,10 @@ func StopNode() *C.char {
 	return makeJSONResponse(nil)
 }
 
-func CreateBundle() *C.char {
-  bundle, err := statusBackend.CreateBundle();
+// Create an X3DH bundle
+//export CreateX3DHBundle
+func CreateX3DHBundle() *C.char {
+  bundle, err := statusBackend.CreateX3DHBundle();
   if err != nil {
     return makeJSONResponse(err)
   }
