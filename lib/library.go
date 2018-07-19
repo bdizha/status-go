@@ -220,7 +220,7 @@ func SignMessage(rpcParams *C.char) *C.char {
 		result := sign.NewErrResult(err)
 		return prepareSignResponse(result)
 	}
-	result := statusBackend.SignMessage(params)
+	result := statusBackend.SignMessage(params, params.Password)
 	return prepareSignResponse(result)
 }
 

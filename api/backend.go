@@ -240,8 +240,8 @@ func (b *StatusBackend) SendTransaction(ctx context.Context, args transactions.S
 
 // SignMessage checks the pwd vs the selected account and passes on the signParams
 // to personalAPI for message signature
-func (b *StatusBackend) SignMessage(rpcParams personal.SignParams) sign.Result {
-	verifiedAccount, err := b.getVerifiedAccount(rpcParams.Password)
+func (b *StatusBackend) SignMessage(rpcParams personal.SignParams, password string) sign.Result {
+	verifiedAccount, err := b.getVerifiedAccount(password)
 	if err != nil {
 		return sign.NewErrResult(err)
 	}
