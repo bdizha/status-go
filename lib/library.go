@@ -61,6 +61,18 @@ func StopNode() *C.char {
 	return makeJSONResponse(nil)
 }
 
+func CreateBundle() *C.char {
+  bundle, err := statusBackend.CreateBundle();
+  if err != nil {
+    return makeJSONResponse(err)
+  }
+
+  cstr := C.CString(bundle)
+
+  //defer C.free(unsafe.Pointer(cstr))
+  return cstr
+}
+
 //ValidateNodeConfig validates config for status node
 //export ValidateNodeConfig
 func ValidateNodeConfig(configJSON *C.char) *C.char {
