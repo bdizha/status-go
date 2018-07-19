@@ -462,7 +462,7 @@ func (b *StatusBackend) CreateX3DHBundle() (string, error) {
 		return "", nil
 	}
 
-	bundle, _, err := x3dh.NewBundle(selectedAccount.AccountKey.PrivateKey)
+	bundle, err := x3dh.NewBundleContainer(selectedAccount.AccountKey.PrivateKey)
 	if err != nil {
 		return "", err
 	}

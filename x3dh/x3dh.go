@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"crypto/ecdsa"
-        "crypto/x509"
+	"crypto/x509"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
@@ -37,12 +37,14 @@ func NewBundleContainer(identity *ecdsa.PrivateKey) (*BundleContainer, error) {
 	compressedIdentityKey := crypto.CompressPubkey(&identity.PublicKey)
 
 	signature, err := crypto.Sign(crypto.Keccak256(compressedPreKey), identity)
-
 	if err != nil {
 		return nil, err
 	}
 
-        encodedPreKey, err := x509.MarshalECPrivateKey(preKey)
+	encodedPreKey, err := x509.MarshalECPrivateKey(preKey)
+	if err != nil {
+		return nil, err
+	}
 
 	bundle := Bundle{
 		Identity:     compressedIdentityKey,
@@ -50,10 +52,10 @@ func NewBundleContainer(identity *ecdsa.PrivateKey) (*BundleContainer, error) {
 		Signature:    signature,
 	}
 
-        return &BundleContainer {
-          Bundle: &bundle,
-          PrivateSignedPreKey: encodedPreKey,
-        }, nil
+	return &BundleContainer{
+		Bundle:              &bundle,
+		PrivateSignedPreKey: encodedPreKey,
+	}, nil
 }
 
 func verifyBundle(bundle *Bundle, bundleIdentityKey *ecdsa.PublicKey) error {
