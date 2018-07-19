@@ -23,16 +23,30 @@ var (
 	ErrSignInvalidNumberOfParameters = errors.New("invalid number of parameters for personal_sign (2 or 3 expected)")
 )
 
-type Metadata struct {
+// SignParams required to sign messages
+type SignParams struct {
 	Data     interface{} `json:"data"`
 	Address  string      `json:"account"`
 	Password string      `json:"password"`
 }
 
+// RecoverParams are for calling `personal_ecRecover`
+type RecoverParams struct {
+	Message   string
+	Signature string
+}
+
 // UnmarshalSignRPCParams puts the RPC params for `personal_sign` or `web3.personal.sign`
-// into Metadata
-func UnmarshalSignRPCParams(rpcParamsJSON string) (Metadata, error) {
-	var params Metadata
+// into SignParams
+func UnmarshalSignRPCParams(rpcParamsJSON string) (SignParams, error) {
+	var params SignParams
+	err := json.Unmarshal([]byte(rpcParamsJSON), &params)
+	return params, err
+}
+
+// UnmarshalRecoverRPCParams
+func UnmarshalRecoverRPCParams(rpcParamsJSON string) (RecoverParams, error) {
+	var params RecoverParams
 	err := json.Unmarshal([]byte(rpcParamsJSON), &params)
 	return params, err
 }
@@ -57,17 +71,25 @@ func (api *PublicAPI) SetRPC(rpcClient *rpc.Client, timeout time.Duration) {
 }
 
 // Recover is an implementation of `personal_ecRecover` or `web3.personal.ecRecover` API
-func (api *PublicAPI) Recover(context context.Context, rpcParams ...interface{}) (interface{}, error) {
-	var response interface{}
-
+func (api *PublicAPI) Recover(rpcParams RecoverParams) sign.Result {
+	var response sign.Response
+	ctx, cancel := context.WithTimeout(context.Background(), api.rpcTimeout)
+	defer cancel()
 	err := api.rpcClient.CallContextIgnoringLocalHandlers(
-		context, &response, params.PersonalRecoverMethodName, rpcParams...)
+		ctx,
+		&response,
+		params.PersonalRecoverMethodName,
+		rpcParams.Message, rpcParams.Signature)
 
-	return response, err
+	result := sign.Result{Error: err}
+	if err == nil {
+		result.Response = response
+	}
+	return result
 }
 
 // Sign is an implementation of `personal_sign` or `web3.personal.sign` API
-func (api *PublicAPI) Sign(rpcParams Metadata, verifiedAccount *account.SelectedExtKey) sign.Result {
+func (api *PublicAPI) Sign(rpcParams SignParams, verifiedAccount *account.SelectedExtKey) sign.Result {
 	if !strings.EqualFold(rpcParams.Address, verifiedAccount.Address.Hex()) {
 		return sign.NewErrResult(ErrInvalidPersonalSignAccount)
 	}

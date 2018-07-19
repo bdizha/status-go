@@ -238,14 +238,20 @@ func (b *StatusBackend) SendTransaction(ctx context.Context, args transactions.S
 	return b.transactor.SendTransaction(ctx, args)
 }
 
-// SignMessage checks the pwd vs the selected account and passes on the metadata
+// SignMessage checks the pwd vs the selected account and passes on the signParams
 // to personalAPI for message signature
-func (b *StatusBackend) SignMessage(rpcParams personal.Metadata) sign.Result {
+func (b *StatusBackend) SignMessage(rpcParams personal.SignParams) sign.Result {
 	verifiedAccount, err := b.getVerifiedAccount(rpcParams.Password)
 	if err != nil {
 		return sign.NewErrResult(err)
 	}
 	return b.personalAPI.Sign(rpcParams, verifiedAccount)
+}
+
+// Recover calls the personalAPI to return address associated with the private
+// key that was used to calculate the signature in the message
+func (b *StatusBackend) Recover(rpcParams personal.RecoverParams) sign.Result {
+	return b.personalAPI.Recover(rpcParams)
 }
 
 func (b *StatusBackend) getVerifiedAccount(password string) (*account.SelectedExtKey, error) {
@@ -329,7 +335,7 @@ func (b *StatusBackend) registerHandlers() error {
 	})
 
 	rpcClient.RegisterHandler(params.PersonalSignMethodName, unsupportedMethodHandler)
-	rpcClient.RegisterHandler(params.PersonalRecoverMethodName, b.personalAPI.Recover)
+	rpcClient.RegisterHandler(params.PersonalRecoverMethodName, unsupportedMethodHandler)
 
 	return nil
 }

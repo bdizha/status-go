@@ -211,8 +211,9 @@ func Logout() *C.char {
 	return makeJSONResponse(err)
 }
 
-// SignMessage takes unmarshals rpc params {data, address, password} and passes
+// SignMessage unmarshals rpc params {data, address, password} and passes
 // them onto backend.SignMessage
+// nolint: deadcode
 func SignMessage(rpcParams *C.char) *C.char {
 	params, err := personal.UnmarshalSignRPCParams(C.GoString(rpcParams))
 	if err != nil {
@@ -220,6 +221,19 @@ func SignMessage(rpcParams *C.char) *C.char {
 		return prepareSignResponse(result)
 	}
 	result := statusBackend.SignMessage(params)
+	return prepareSignResponse(result)
+}
+
+// Recover unmarshals rpc params {signDataString, signedData} and passes
+// them onto backend.
+// nolint: deadcode
+func Recover(rpcParams *C.char) *C.char {
+	params, err := personal.UnmarshalRecoverRPCParams(C.GoString(rpcParams))
+	if err != nil {
+		result := sign.NewErrResult(err)
+		return prepareSignResponse(result)
+	}
+	result := statusBackend.Recover(params)
 	return prepareSignResponse(result)
 }
 
