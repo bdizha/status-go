@@ -68,17 +68,17 @@ func verifyBundle(bundle *Bundle, bundleIdentityKey *ecdsa.PublicKey) error {
 }
 
 func performDH(privateKey *ecies.PrivateKey, publicKey *ecies.PublicKey) ([]byte, error) {
-  return  privateKey.GenerateShared(
-    publicKey,
-    sskLen,
-    sskLen,
-  )
+	return privateKey.GenerateShared(
+		publicKey,
+		sskLen,
+		sskLen,
+	)
 }
 
 func getSharedSecret(dh1 []byte, dh2 []byte, dh3 []byte) []byte {
-  secretInput := append(append(dh1, dh2...), dh3...)
+	secretInput := append(append(dh1, dh2...), dh3...)
 
-  return crypto.Keccak256(secretInput)
+	return crypto.Keccak256(secretInput)
 }
 
 // Initiate an X3DH session
@@ -113,7 +113,7 @@ func x3dhPassive(
 	theirEphemeralKey *ecies.PublicKey,
 	myIdentityKey *ecies.PrivateKey,
 ) ([]byte, error) {
-	dh1, err := performDH(mySignedPreKey,theirIdentityKey)
+	dh1, err := performDH(mySignedPreKey, theirIdentityKey)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func PerformActiveX3DH(bundle *Bundle, prv *ecdsa.PrivateKey) ([]byte, *ecdsa.Pr
 		return nil, nil, err
 	}
 
-        sharedSecret, err := x3dhActive(
+	sharedSecret, err := x3dhActive(
 		ecies.ImportECDSA(prv),
 		ecies.ImportECDSAPublic(bundleSignedPreKey),
 		ecies.ImportECDSA(ephemeralKey),
@@ -166,22 +166,22 @@ func PerformActiveX3DH(bundle *Bundle, prv *ecdsa.PrivateKey) ([]byte, *ecdsa.Pr
 		return nil, nil, err
 	}
 
-        return sharedSecret, ephemeralKey, nil
+	return sharedSecret, ephemeralKey, nil
 }
 
 // They used our bundle, with ID of the signedPreKey, we loaded our identity key and
 // the correct signedPreKey and we perform X3DH
 func PerformPassiveX3DH(theirIdentityKey *ecdsa.PublicKey, mySignedPreKey *ecdsa.PrivateKey, theirEphemeralKey *ecdsa.PublicKey, myPrivateKey *ecdsa.PrivateKey) ([]byte, error) {
 
-  sharedSecret, err := x3dhPassive(
-    ecies.ImportECDSAPublic(theirIdentityKey),
-    ecies.ImportECDSA(mySignedPreKey),
-    ecies.ImportECDSAPublic(theirEphemeralKey),
-    ecies.ImportECDSA(myPrivateKey),
-  )
-  if err != nil {
-    return nil, err
-  }
+	sharedSecret, err := x3dhPassive(
+		ecies.ImportECDSAPublic(theirIdentityKey),
+		ecies.ImportECDSA(mySignedPreKey),
+		ecies.ImportECDSAPublic(theirEphemeralKey),
+		ecies.ImportECDSA(myPrivateKey),
+	)
+	if err != nil {
+		return nil, err
+	}
 
-  return sharedSecret, nil
+	return sharedSecret, nil
 }

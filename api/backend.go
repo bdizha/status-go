@@ -457,17 +457,17 @@ func appendIf(condition bool, services []gethnode.ServiceConstructor, service ge
 }
 
 func (b *StatusBackend) CreateX3DHBundle() (string, error) {
-  selectedAccount, err := b.AccountManager().SelectedAccount()
-  if selectedAccount == nil || err == account.ErrNoAccountSelected {
-    return "", nil
-  }
+	selectedAccount, err := b.AccountManager().SelectedAccount()
+	if selectedAccount == nil || err == account.ErrNoAccountSelected {
+		return "", nil
+	}
 
-  bundle, _, err := x3dh.NewBundle(selectedAccount.AccountKey.PrivateKey)
-  if err != nil {
-    return "", err
-  }
+	bundle, _, err := x3dh.NewBundle(selectedAccount.AccountKey.PrivateKey)
+	if err != nil {
+		return "", err
+	}
 
-  jsonBundle, err := bundle.ToJSON()
+	jsonBundle, err := bundle.ToJSON()
 
-  return jsonBundle, err
+	return jsonBundle, err
 }

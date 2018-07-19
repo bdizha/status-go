@@ -3,19 +3,18 @@ package x3dh
 import (
 	"testing"
 
-
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/stretchr/testify/assert"
 )
 
 const (
-	alicePrivateKey = "00000000000000000000000000000000"
-        aliceEphemeralKey = "11111111111111111111111111111111"
-	bobPrivateKey = "22222222222222222222222222222222"
-	bobSignedPreKey = "33333333333333333333333333333333"
+	alicePrivateKey   = "00000000000000000000000000000000"
+	aliceEphemeralKey = "11111111111111111111111111111111"
+	bobPrivateKey     = "22222222222222222222222222222222"
+	bobSignedPreKey   = "33333333333333333333333333333333"
 
-        jsonBundle = "{\"identity\":\"ApCZnbv0MDS/+x3VPqwetMM6TqHE9Iulhc/eODCEDwVV\",\"signedPreKey\":\"AjxyrdtP3wmvlPDJTX/pKjhqfnDPih2FkWOGuyU1x7Gx\",\"signature\":\"P1ax7dSQmCjr/UfPFB8dxk0FowfSP7R7KV8F/WuimwtnvJkz3yT+oNDdlbm4ddDjOFjwTVDscPK2qbraTkkg9gA=\"}"
+	jsonBundle = "{\"identity\":\"ApCZnbv0MDS/+x3VPqwetMM6TqHE9Iulhc/eODCEDwVV\",\"signedPreKey\":\"AjxyrdtP3wmvlPDJTX/pKjhqfnDPih2FkWOGuyU1x7Gx\",\"signature\":\"P1ax7dSQmCjr/UfPFB8dxk0FowfSP7R7KV8F/WuimwtnvJkz3yT+oNDdlbm4ddDjOFjwTVDscPK2qbraTkkg9gA=\"}"
 )
 
 var sharedKey = []byte{0xa4, 0xe9, 0x23, 0xd0, 0xaf, 0x8f, 0xe7, 0x8a, 0x5, 0x63, 0x63, 0xbe, 0x20, 0xe7, 0x1c, 0xa, 0x58, 0xe5, 0x69, 0xea, 0x8f, 0xc1, 0xf7, 0x92, 0x89, 0xec, 0xa1, 0xd, 0x9f, 0x68, 0x13, 0x3a}
@@ -135,41 +134,41 @@ func TestX3dhActive(t *testing.T) {
 // Bob receives a message from Alice
 func TestPerformX3DHPassive(t *testing.T) {
 
-  alicePrivateKey, err := crypto.ToECDSA([]byte(alicePrivateKey))
-  assert.Nil(t, err, "Private key should be generated without errors")
+	alicePrivateKey, err := crypto.ToECDSA([]byte(alicePrivateKey))
+	assert.Nil(t, err, "Private key should be generated without errors")
 
-  bobSignedPreKey, err := crypto.ToECDSA([]byte(bobSignedPreKey))
-  assert.Nil(t, err, "Private key should be generated without errors")
+	bobSignedPreKey, err := crypto.ToECDSA([]byte(bobSignedPreKey))
+	assert.Nil(t, err, "Private key should be generated without errors")
 
-  aliceEphemeralKey, err := crypto.ToECDSA([]byte(aliceEphemeralKey))
-  assert.Nil(t, err, "ephemeral key should be generated without errors")
+	aliceEphemeralKey, err := crypto.ToECDSA([]byte(aliceEphemeralKey))
+	assert.Nil(t, err, "ephemeral key should be generated without errors")
 
-  bobPrivateKey, err := crypto.ToECDSA([]byte(bobPrivateKey))
-  assert.Nil(t, err, "Private key should be generated without errors")
+	bobPrivateKey, err := crypto.ToECDSA([]byte(bobPrivateKey))
+	assert.Nil(t, err, "Private key should be generated without errors")
 
-  x3dh, err := PerformPassiveX3DH(
-    &alicePrivateKey.PublicKey,
-    bobSignedPreKey,
-    &aliceEphemeralKey.PublicKey,
-    bobPrivateKey,
-  )
+	x3dh, err := PerformPassiveX3DH(
+		&alicePrivateKey.PublicKey,
+		bobSignedPreKey,
+		&aliceEphemeralKey.PublicKey,
+		bobPrivateKey,
+	)
 
-  assert.Nil(t, err, "Shared key should be generated without errors")
-  assert.Equalf(t, sharedKey, x3dh, "Should generate the correct key")
+	assert.Nil(t, err, "Shared key should be generated without errors")
+	assert.Equalf(t, sharedKey, x3dh, "Should generate the correct key")
 }
 
 func TestPerformActiveX3DH(t *testing.T) {
-  bundle, err := bobBundle()
+	bundle, err := bobBundle()
 
-  assert.Nil(t, err, "Test bundle should be generated without errors")
+	assert.Nil(t, err, "Test bundle should be generated without errors")
 
-  privateKey, err := crypto.ToECDSA([]byte(bobPrivateKey))
+	privateKey, err := crypto.ToECDSA([]byte(bobPrivateKey))
 
-  assert.Nil(t, err, "Private key should be imported without errors")
+	assert.Nil(t, err, "Private key should be imported without errors")
 
-  actualSharedSecret, actualEphemeralKey, err := PerformActiveX3DH(bundle, privateKey)
+	actualSharedSecret, actualEphemeralKey, err := PerformActiveX3DH(bundle, privateKey)
 
-  assert.Nil(t, err, "no error should be reported")
-  assert.NotNil(t, actualEphemeralKey, "An ephemeral key-pair should be generated")
-  assert.NotNil(t, actualSharedSecret, "A shared key should be generated")
+	assert.Nil(t, err, "no error should be reported")
+	assert.NotNil(t, actualEphemeralKey, "An ephemeral key-pair should be generated")
+	assert.NotNil(t, actualSharedSecret, "A shared key should be generated")
 }

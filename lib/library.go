@@ -14,8 +14,8 @@ import (
 	"github.com/status-im/status-go/params"
 	"github.com/status-im/status-go/profiling"
 	"github.com/status-im/status-go/sign"
-	"gopkg.in/go-playground/validator.v9"
 	"github.com/status-im/status-go/signal"
+	"gopkg.in/go-playground/validator.v9"
 )
 
 // All general log messages in this package should be routed through this logger.
@@ -64,15 +64,15 @@ func StopNode() *C.char {
 // Create an X3DH bundle
 //export CreateX3DHBundle
 func CreateX3DHBundle() *C.char {
-  bundle, err := statusBackend.CreateX3DHBundle();
-  if err != nil {
-    return makeJSONResponse(err)
-  }
+	bundle, err := statusBackend.CreateX3DHBundle()
+	if err != nil {
+		return makeJSONResponse(err)
+	}
 
-  cstr := C.CString(bundle)
+	cstr := C.CString(bundle)
 
-  //defer C.free(unsafe.Pointer(cstr))
-  return cstr
+	//defer C.free(unsafe.Pointer(cstr))
+	return cstr
 }
 
 //ValidateNodeConfig validates config for status node
