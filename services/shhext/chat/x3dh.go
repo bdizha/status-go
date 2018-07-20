@@ -1,11 +1,11 @@
-package x3dh
+package chat
 
 import (
 	"errors"
 
 	"crypto/ecdsa"
-	"crypto/x509"
 
+	"encoding/hex"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/golang/protobuf/jsonpb"
@@ -41,7 +41,7 @@ func NewBundleContainer(identity *ecdsa.PrivateKey) (*BundleContainer, error) {
 		return nil, err
 	}
 
-	encodedPreKey, err := x509.MarshalECPrivateKey(preKey)
+	encodedPreKey := []byte(hex.EncodeToString(crypto.FromECDSA(preKey)))
 	if err != nil {
 		return nil, err
 	}

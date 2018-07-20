@@ -1,9 +1,9 @@
-package x3dh
+package chat
 
 import (
 	"testing"
 
-	"crypto/x509"
+	"encoding/hex"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
@@ -17,7 +17,7 @@ const (
 	bobSignedPreKey   = "33333333333333333333333333333333"
 
 	jsonBundle          = "{\"identity\":\"ApCZnbv0MDS/+x3VPqwetMM6TqHE9Iulhc/eODCEDwVV\",\"signedPreKey\":\"AjxyrdtP3wmvlPDJTX/pKjhqfnDPih2FkWOGuyU1x7Gx\",\"signature\":\"P1ax7dSQmCjr/UfPFB8dxk0FowfSP7R7KV8F/WuimwtnvJkz3yT+oNDdlbm4ddDjOFjwTVDscPK2qbraTkkg9gA=\"}"
-	jsonBundleContainer = "{\"bundle\":{\"identity\":\"ApCZnbv0MDS/+x3VPqwetMM6TqHE9Iulhc/eODCEDwVV\",\"signedPreKey\":\"AjxyrdtP3wmvlPDJTX/pKjhqfnDPih2FkWOGuyU1x7Gx\",\"signature\":\"P1ax7dSQmCjr/UfPFB8dxk0FowfSP7R7KV8F/WuimwtnvJkz3yT+oNDdlbm4ddDjOFjwTVDscPK2qbraTkkg9gA=\"}}"
+	jsonBundleContainer = "{\"bundle\":{\"identity\":\"ApCZnbv0MDS/+x3VPqwetMM6TqHE9Iulhc/eODCEDwVV\",\"signedPreKey\":\"AjxyrdtP3wmvlPDJTX/pKjhqfnDPih2FkWOGuyU1x7Gx\",\"signature\":\"P1ax7dSQmCjr/UfPFB8dxk0FowfSP7R7KV8F/WuimwtnvJkz3yT+oNDdlbm4ddDjOFjwTVDscPK2qbraTkkg9gA=\"},\"privateSignedPreKey\":\"MzAzMDMwMzAzMDMwMzAzMDMwMzAzMDMwMzAzMDMwMzAzMDMwMzAzMDMwMzAzMDMwMzAzMDMwMzAzMDMwMzAzMA==\"}"
 )
 
 var sharedKey = []byte{0xa4, 0xe9, 0x23, 0xd0, 0xaf, 0x8f, 0xe7, 0x8a, 0x5, 0x63, 0x63, 0xbe, 0x20, 0xe7, 0x1c, 0xa, 0x58, 0xe5, 0x69, 0xea, 0x8f, 0xc1, 0xf7, 0x92, 0x89, 0xec, 0xa1, 0xd, 0x9f, 0x68, 0x13, 0x3a}
@@ -55,6 +55,8 @@ func TestNewBundleContainer(t *testing.T) {
 	assert.Nil(t, err, "Private key should be generated without errors")
 
 	bundleContainer, err := NewBundleContainer(privateKey)
+	assert.Nil(t, err, "Bundle container should be created successfully")
+
 	bundle := bundleContainer.Bundle
 
 	assert.Nil(t, err, "Bundle should be generated without errors")
@@ -79,11 +81,11 @@ func TestToJSON(t *testing.T) {
 	privateKey, err := crypto.ToECDSA([]byte(alicePrivateKey))
 	assert.Nil(t, err, "Key should be generated without errors")
 
-	encodedKey, err := x509.MarshalECPrivateKey(privateKey)
-	assert.Nil(t, err, "Key should be marshaled without errors")
+	encodedKey := []byte(hex.EncodeToString(crypto.FromECDSA(privateKey)))
 
 	bundle, err := bobBundle()
 	assert.Nil(t, err, "Test bundle should be generated without errors")
+
 	bundleContainer := BundleContainer{
 		Bundle:              bundle,
 		PrivateSignedPreKey: encodedKey,

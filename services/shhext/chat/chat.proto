@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package chat;
+
+message Bundle {
+  bytes identity = 1;
+  bytes signed_pre_key = 2;
+  bytes signature = 3;
+}
+
+message BundleContainer {
+  Bundle bundle = 1;
+  bytes private_signed_pre_key = 2;
+}
+
+// What is sent through the wire
+message OneToOnePayload {
+  string content = 1;
+  string content_type = 2;
+  string message_type = 3;
+  int64 clock_value = 4;
+  Bundle bundle = 5;
+}
+
+// What is sent to RPC
+message OneToOne {
+  string dst = 1;
+  OneToOnePayload payload = 2;
+  // Eventually removed if we persist bundles in status-go
+  string bundleId = 10;
+}

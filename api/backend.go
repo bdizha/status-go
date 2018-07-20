@@ -21,10 +21,10 @@ import (
 	"github.com/status-im/status-go/rpc"
 	"github.com/status-im/status-go/services/personal"
 	"github.com/status-im/status-go/services/rpcfilters"
+	"github.com/status-im/status-go/services/shhext/chat"
 	"github.com/status-im/status-go/sign"
 	"github.com/status-im/status-go/signal"
 	"github.com/status-im/status-go/transactions"
-	"github.com/status-im/status-go/x3dh"
 )
 
 const (
@@ -463,7 +463,7 @@ func (b *StatusBackend) CreateX3DHBundle() (string, error) {
 		return "", nil
 	}
 
-	bundle, err := x3dh.NewBundleContainer(selectedAccount.AccountKey.PrivateKey)
+	bundle, err := chat.NewBundleContainer(selectedAccount.AccountKey.PrivateKey)
 	if err != nil {
 		return "", err
 	}
