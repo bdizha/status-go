@@ -31,6 +31,7 @@ func NewRendezvous(servers []ma.Multiaddr, identity *ecdsa.PrivateKey, node *dis
 	r.record.Set(enr.IP(node.IP))
 	r.record.Set(enr.TCP(node.TCP))
 	r.record.Set(enr.UDP(node.UDP))
+	// public key is added to ENR when ENR is signed
 	if err := enr.SignV4(&r.record, identity); err != nil {
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func (r *Rendezvous) Running() bool {
 	return r.client != nil
 }
 
-// Start creates client with temporary (not persisted) identity.
+// Start creates client with ephemeral identity.
 func (r *Rendezvous) Start() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -77,14 +78,14 @@ func (r *Rendezvous) Stop() error {
 
 // Register renews registration in the specified server.
 func (r *Rendezvous) Register(topic string, stop chan struct{}) error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
 	ticker := time.NewTicker(r.registrationPeriod)
 	defer ticker.Stop()
 	register := func() {
 		srv := r.servers[rand.Intn(len(r.servers))]
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		r.mu.RLock()
 		err := r.client.Register(ctx, srv, topic, r.record)
+		r.mu.RUnlock()
 		cancel()
 		if err != nil {
 			log.Error("error registering", "topic", topic, "rendevous server", srv, "err", err)
@@ -105,24 +106,25 @@ func (r *Rendezvous) Register(topic string, stop chan struct{}) error {
 func (r *Rendezvous) Discover(
 	topic string, period <-chan time.Duration,
 	found chan<- *discv5.Node, lookup chan<- bool) error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
 	ticker := time.NewTicker(<-period)
 	for {
 		select {
-		case new, ok := <-period:
+		case newPeriod, ok := <-period:
 			ticker.Stop()
 			if !ok {
 				return nil
 			}
-			ticker = time.NewTicker(new)
+			ticker = time.NewTicker(newPeriod)
 		case <-ticker.C:
 			srv := r.servers[rand.Intn(len(r.servers))]
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			r.mu.RLock()
 			records, err := r.client.Discover(ctx, srv, topic, r.bucketSize)
+			r.mu.RUnlock()
 			cancel()
 			if err != nil {
 				log.Error("error fetching records", "topic", topic, "rendezvous server", srv, "err", err)
+				continue
 			}
 			for i := range records {
 				n, err := enrToNode(records[i])
@@ -151,9 +153,8 @@ func enrToNode(record enr.Record) (*discv5.Node, error) {
 	if err := record.Load(&tport); err != nil {
 		return nil, err
 	}
-	if err := record.Load(&uport); err != nil {
-		uport = enr.UDP(tport)
-	}
+	// ignore absence of udp port, as it is optional
+	_ = record.Load(&uport)
 	ecdsaKey := ecdsa.PublicKey(key)
 	return discv5.NewNode(discv5.PubkeyID(&ecdsaKey), net.IP(ip), uint16(uport), uint16(tport)), nil
 }

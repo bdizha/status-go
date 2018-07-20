@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
 
-	"github.com/status-im/status-go/discovery"
 	"github.com/status-im/status-go/params"
 	"github.com/status-im/status-go/t/helpers"
 	"github.com/stretchr/testify/require"
@@ -269,7 +268,8 @@ func isPeerConnected(node *StatusNode, peerURL string) (bool, error) {
 
 func TestStatusNodeRendezvousDiscovery(t *testing.T) {
 	config := params.NodeConfig{
-		EnabledDiscoveries: []string{discovery.RendezvousV1},
+		Rendezvous:  true,
+		NoDiscovery: true,
 		ClusterConfig: &params.ClusterConfig{
 			Enabled: true,
 			// not necessarily with id, just valid multiaddr
