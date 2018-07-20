@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"errors"
@@ -8,14 +8,14 @@ import (
 // ErrorEmpty returned when value is empty.
 var ErrorEmpty = errors.New("empty value not allowed")
 
-// StringSlice is a flag that allows to set multiple types of string
+// StringSlice is a type of flag that allows setting multiple string values.
 type StringSlice []string
 
 func (s *StringSlice) String() string {
 	return "string slice"
 }
 
-// Set unmarshals enode into discv5.Node.
+// Set trims space from string and stores it.
 func (s *StringSlice) Set(value string) error {
 	trimmed := strings.TrimSpace(value)
 	if len(trimmed) == 0 {

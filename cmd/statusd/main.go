@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/status-im/status-go/cmd"
-	"github.com/status-im/status-go/discovery"
 	"github.com/status-im/status-go/logutils"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -63,12 +61,12 @@ var (
 	logWithoutColors  = flag.Bool("log-without-color", false, "Disables log colors")
 	version           = flag.Bool("version", false, "Print version")
 
-	listenAddr    = flag.String("listenaddr", ":30303", "IP address and port of this node (e.g. 127.0.0.1:30303)")
-	standalone    = flag.Bool("standalone", true, "Don't actively connect to peers, wait for incoming connections")
-	bootnodes     = flag.String("bootnodes", "", "A list of bootnodes separated by comma")
-	discoveryFlag = flag.Bool("discovery", false, "Enable discovery protocol")
-	dtypes        = cmd.StringSlice{}
-	rendezvous    = cmd.StringSlice{}
+	listenAddr      = flag.String("listenaddr", ":30303", "IP address and port of this node (e.g. 127.0.0.1:30303)")
+	standalone      = flag.Bool("standalone", true, "Don't actively connect to peers, wait for incoming connections")
+	bootnodes       = flag.String("bootnodes", "", "A list of bootnodes separated by comma")
+	discoveryFlag   = flag.Bool("discovery", false, "Enable discovery protocol")
+	rendezvous      = flag.Bool("rendezvous", false, "Enable rendezvous protocol")
+	rendezvousNodes = StringSlice{}
 
 	// don't change the name of this flag, https://github.com/ethereum/go-ethereum/blob/master/metrics/metrics.go#L41
 	metrics = flag.Bool("metrics", false, "Expose ethereum metrics with debug_metrics jsonrpc call.")
@@ -99,8 +97,7 @@ var logger = log.New("package", "status-go/cmd/statusd")
 func main() {
 	flag.Var(&searchTopics, "topic.search", "Topic that will be searched in discovery v5, e.g (mailserver=1,1)")
 	flag.Var(&registerTopics, "topic.register", "Topic that will be registered using discovery v5.")
-	flag.Var(&dtypes, "dtype", "Discovery type.")
-	flag.Var(&rendezvous, "rendnode", "Rendezvous server.")
+	flag.Var(&rendezvousNodes, "rendezvous-node", "Rendezvous server.")
 
 	flag.Usage = printUsage
 	flag.Parse()
@@ -257,12 +254,9 @@ func makeNodeConfig() (*params.NodeConfig, error) {
 		nodeConfig.ClusterConfig.BootNodes = nil
 	}
 
-	nodeConfig.ClusterConfig.RendezvousNodes = []string(rendezvous)
-	nodeConfig.EnabledDiscoveries = []string(dtypes)
-	if len(nodeConfig.EnabledDiscoveries) == 0 {
-		nodeConfig.EnabledDiscoveries = append(nodeConfig.EnabledDiscoveries, discovery.EthereumV5)
-	}
+	nodeConfig.ClusterConfig.RendezvousNodes = []string(rendezvousNodes)
 	nodeConfig.NoDiscovery = !(*discoveryFlag)
+	nodeConfig.Rendezvous = *rendezvous
 	nodeConfig.RequireTopics = map[discv5.Topic]params.Limits(searchTopics)
 	nodeConfig.RegisterTopics = []discv5.Topic(registerTopics)
 

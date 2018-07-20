@@ -180,39 +180,43 @@ func (n *StatusNode) setupRPCClient() (err error) {
 }
 
 func (n *StatusNode) discoveryEnabled() bool {
-	return n.config != nil && !n.config.NoDiscovery && n.config.ClusterConfig != nil && len(n.config.EnabledDiscoveries) != 0
+	return n.config != nil && (!n.config.NoDiscovery || n.config.Rendezvous) && n.config.ClusterConfig != nil
+}
+
+func (n *StatusNode) startRendezvous() error {
+	if !n.config.Rendezvous {
+		return errors.New("rendezvous is not enabled")
+	}
+	if len(n.config.ClusterConfig.RendezvousNodes) == 0 {
+		return errors.New("rendezvous node must be provided if rendezvous discovery is enabled")
+	}
+	maddrs := make([]ma.Multiaddr, len(n.config.ClusterConfig.RendezvousNodes))
+	for i, addr := range n.config.ClusterConfig.RendezvousNodes {
+		var err error
+		maddrs[i], err = ma.NewMultiaddr(addr)
+		if err != nil {
+			return fmt.Errorf("failed to parse rendezvous node %s: %v", n.config.ClusterConfig.RendezvousNodes[0], err)
+		}
+	}
+	srv := n.gethNode.Server()
+	var err error
+	n.discovery, err = discovery.NewRendezvous(maddrs, srv.PrivateKey, srv.Self())
+	return err
 }
 
 func (n *StatusNode) startDiscovery() error {
-	if len(n.config.EnabledDiscoveries) != 1 {
+	if !n.config.NoDiscovery && n.config.Rendezvous {
 		return errors.New("only one discovery can be used (will be allowed to use more in next change)")
 	}
-	switch dtype := n.config.EnabledDiscoveries[0]; dtype {
-	case discovery.EthereumV5:
+	if !n.config.NoDiscovery {
 		n.discovery = discovery.NewDiscV5(
 			n.gethNode.Server().PrivateKey,
 			n.config.ListenAddr,
 			parseNodesV5(n.config.ClusterConfig.BootNodes))
-	case discovery.RendezvousV1:
-		if len(n.config.ClusterConfig.RendezvousNodes) == 0 {
-			return errors.New("rendezvous node must be provided if rendezvous discovery is enabled")
-		}
-		maddrs := make([]ma.Multiaddr, len(n.config.ClusterConfig.RendezvousNodes))
-		for i, addr := range n.config.ClusterConfig.RendezvousNodes {
-			var err error
-			maddrs[i], err = ma.NewMultiaddr(addr)
-			if err != nil {
-				return fmt.Errorf("failed to parse rendezvous node %s: %v", n.config.ClusterConfig.RendezvousNodes[0], err)
-			}
-		}
-		srv := n.gethNode.Server()
-		var err error
-		n.discovery, err = discovery.NewRendezvous(maddrs, srv.PrivateKey, srv.Self())
-		if err != nil {
+	} else if n.config.Rendezvous {
+		if err := n.startRendezvous(); err != nil {
 			return err
 		}
-	default:
-		return fmt.Errorf("unknown discovery type %s", dtype)
 	}
 	n.register = peers.NewRegister(n.discovery, n.config.RegisterTopics...)
 	options := peers.NewDefaultOptions()
