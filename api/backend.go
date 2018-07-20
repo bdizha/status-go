@@ -13,6 +13,7 @@ import (
 	fcmlib "github.com/NaySoftware/go-fcm"
 
 	"github.com/status-im/status-go/account"
+	"github.com/status-im/status-go/crypto"
 	"github.com/status-im/status-go/jail"
 	"github.com/status-im/status-go/node"
 	"github.com/status-im/status-go/notifications/push/fcm"
@@ -470,4 +471,32 @@ func (b *StatusBackend) CreateX3DHBundle() (string, error) {
 	jsonBundle, err := bundle.ToJSON()
 
 	return jsonBundle, err
+}
+
+func (b *StatusBackend) EncryptSymmetric(symKeyID string, plaintext string) ([]byte, error) {
+	whisperService, err := b.statusNode.WhisperService()
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := whisperService.GetSymKey(symKeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	return crypto.EncryptSymmetric(key, []byte(plaintext))
+}
+
+func (b *StatusBackend) DecryptSymmetric(symKeyID string, plaintext string) ([]byte, error) {
+	whisperService, err := b.statusNode.WhisperService()
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := whisperService.GetSymKey(symKeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	return crypto.DecryptSymmetric(key, []byte(plaintext))
 }

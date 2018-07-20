@@ -1,5 +1,6 @@
 package main
 
+// #include <stdlib.h>
 import "C"
 import (
 	"encoding/json"
@@ -71,8 +72,32 @@ func CreateX3DHBundle() *C.char {
 
 	cstr := C.CString(bundle)
 
-	//defer C.free(unsafe.Pointer(cstr))
+	defer C.free(unsafe.Pointer(cstr))
 	return cstr
+}
+
+//Encrypt some arbitrary data
+//export EncryptSymmetric
+func EncryptSymmetric(symKeyId *C.char, payload *C.char) *C.char {
+  encryptedPayload, err := statusBackend.EncryptSymmetric(C.GoString(symKeyId), C.GoString(payload))
+  if err != nil {
+		return makeJSONResponse(err)
+  }
+  cPayload := C.CString(string(encryptedPayload))
+  defer C.free(unsafe.Pointer(cPayload))
+  return cPayload
+}
+
+//Decrypt some arbitrary data
+//export DecryptSymmetric
+func DecryptSymmetric(symKeyId *C.char, payload *C.char) *C.char {
+  encryptedPayload, err := statusBackend.DecryptSymmetric(C.GoString(symKeyId), C.GoString(payload))
+  if err != nil {
+		return makeJSONResponse(err)
+  }
+  cPayload := C.CString(string(encryptedPayload))
+  defer C.free(unsafe.Pointer(cPayload))
+  return cPayload
 }
 
 //ValidateNodeConfig validates config for status node
